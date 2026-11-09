@@ -22,6 +22,8 @@
     <Compile Remove="tools/**;round0/**;res/**;dist/**" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Harmony comes from its own Workshop item (manifest dependency com.harmony); compiled against, never shipped -->
+    <Reference Include="0Harmony"><HintPath>lib\0Harmony.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="mscorlib"><HintPath>$(GameManaged)\mscorlib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="System"><HintPath>$(GameManaged)\System.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="System.Core"><HintPath>$(GameManaged)\System.Core.dll</HintPath><Private>false</Private></Reference>

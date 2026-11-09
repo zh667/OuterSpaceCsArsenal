@@ -130,7 +130,7 @@ def main():
                 on_canvas(sp, kind, v).save(os.path.join(out, st, f"{gun}_{v}.png"))
                 report[f"{st}/{gun}_{v}"] = list(sp.size); ims[st].append(sp)
         rows.append(("r", CN[gun], ims["A"]))
-        if gun in ("glock18", "ak47"):
+        if True:   # A4 is the chosen style (11-09); A2/A3 kept for comparisons
             for st in ("A2", "A3", "A4"):
                 vs = []
                 for v in "sbf":

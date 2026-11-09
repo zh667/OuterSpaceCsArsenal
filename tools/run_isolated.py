@@ -115,6 +115,10 @@ def prepare_data(save):
     # The player's mod setup: their enabled mods stay enabled (their files are copied by install_mod), so a save that
     # used them loads without the game's "missing mod" question; this mod is added.
     ids = read_mod_dat(PLAYER_DATA / "mod.dat")
+    # mods this one needs that the player may not have (mod.json "testMods", e.g. Harmony) come first
+    for tm in MOD.get("testMods", []):
+        if tm["packageId"] not in ids:
+            ids.append(tm["packageId"])
     if MOD["packageId"] not in ids:
         ids.append(MOD["packageId"])
     # mod.dat (ModPluginManager.saveInfo): big-endian int count, then per mod a big-endian ushort length + UTF-8 id.
@@ -139,6 +143,8 @@ def install_mod(no_build):
             for part in ("Manifest", "v_common"):
                 if (other / part).exists():
                     shutil.copytree(other / part, mods / other.name / part)
+    for tm in MOD.get("testMods", []):
+        shutil.copytree(Path(tm["path"]), mods / tm["folder"], dirs_exist_ok=True)
     shutil.copytree(ROOT / "dist" / MOD["folder"], mods / MOD["folder"])
     print("mods in the test copy:", sorted(p.name for p in mods.iterdir()))
 

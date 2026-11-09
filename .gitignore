@@ -9,3 +9,4 @@ round0/
 tools/workshop_fetch/bin/
 tools/workshop_fetch/obj/
 __pycache__/
+tools/layout.json

@@ -1,30 +1,31 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading;
+using System.Linq;
+using HarmonyLib;
 using UnityEngine;
 using CsArsenal.Kit;
 
 namespace CsArsenal
 {
-    // Checks in the isolated game (python tools/run_isolated.py --tests <name>).
-    //   agents (default): five colonists in a row, left to right: unchanged | SAS route 1 (clothes) + Glock |
-    //                     SAS route 2 (frames) | Phoenix route 1 + AK-47 | Phoenix route 2; screenshots paused and walking.
-    //   guns:             every round-0 gun in a colonist's hands, one screenshot per gun.
+    // Checks in the isolated game (python tools/run_isolated.py --tests <name>):
+    //   defs   rows, recipes, bench, tech node and the Harmony patches
+    //   fight  one drafted colonist, each gun in turn against three spawned monsters: hits, headshots, Zeus executions,
+    //          kills and the credits gained (kill rewards)
+    //   hand   each gun in a drafted colonist's hands (screenshots)
+    //   all    defs + fight + hand
     public class SelfTest : SelfTestBase
     {
         protected override string ModName => "CsArsenal";
         protected override string ModVersion => ModBehaviour.Version;
 
         readonly List<BaseHero> heroes = new List<BaseHero>();
-        readonly List<AgentOverlay> overlays = new List<AgentOverlay>();
+        string monsterId;
 
         protected override IEnumerator RunTests()
         {
-            var c0 = new Check { name = "rows added", passed = true }; result.checks.Add(c0);
-            foreach (var g in CsData.Guns) if (ImplDef<T_WeaponDef>.getDataID(g.Id) == null) { c0.passed = false; c0.details.Add("missing gun " + g.Id); }
-            foreach (var c in CsData.Clothes) if (ImplDef<T_ClothDef>.getDataID(c.Id) == null) { c0.passed = false; c0.details.Add("missing cloth " + c.Id); }
-            c0.summary = string.Join("; ", CsDefLoader.Report);
+            Run(CheckDefs);
+            if (req.tests == "defs") yield break;
 
             SetClock(0f);
             var info = new Check { name = "colonists", info = true, passed = true }; result.checks.Add(info);
@@ -32,128 +33,92 @@ namespace CsArsenal
             {
                 Locked(() =>
                 {
-                    var hm = MapManager.getInstance()?.heroManager;
-                    if (hm == null) { info.details.Add("no heroManager"); return; }
-                    for (sbyte al = 0; al <= 3; al++)
-                    {
-                        var f = hm.getAllianceFaction(al);
-                        int all = 0, dead = 0;
-                        if (f != null) foreach (var h in f.getRoles())
-                            {
-                                if (h == null || h.heroBean == null) continue;
-                                all++;
-                                if (h.heroBean.isDead()) { dead++; continue; }
-                                // only colonists drawn on the map being shown (others may be aboard the ship or away)
-                                if (al == 1 && h.gameObject.activeInHierarchy && MapTools.isCellInRealMapRect(h.cellX, h.cellY)) heroes.Add(h);
-                            }
-                        info.details.Add("attempt " + attempt + " alliance " + al + ": " + (f == null ? "none" : all + " heroes, " + dead + " dead"));
-                    }
+                    var f = MapManager.getInstance()?.heroManager?.getAllianceFaction(1);
+                    if (f != null) foreach (var h in f.getRoles())
+                            if (h != null && h.heroBean != null && !h.heroBean.isDead() && h.gameObject.activeInHierarchy && MapTools.isCellInRealMapRect(h.cellX, h.cellY)) heroes.Add(h);
                 });
                 if (heroes.Count == 0) yield return new WaitForSecondsRealtime(2f);
             }
-            info.summary = heroes.Count + " alive";
-            if (heroes.Count < 2) { info.passed = false; yield break; }
-
-            // the save opens with the offline report over everything, at night: close it and move the clock to midday
+            info.summary = heroes.Count + " on this map";
+            if (heroes.Count == 0) { info.passed = false; yield break; }
             CloseDialogs();
-            Locked(() => { try { UserBean.getInstance().curStarMap.addTimeMM(8 * 60000); } catch (Exception e) { info.details.Add("time: " + e.Message); } });
+            Locked(() => { try { UserBean.getInstance().curStarMap.addTimeMM(8 * 60000); } catch { } });   // midday for the shots
             SetClock(1f); yield return new WaitForSecondsRealtime(1.5f); SetClock(0f);
             CloseDialogs();
 
-            if (req.tests == "guns") { yield return Guard(Guns(), "guns"); yield break; }
-            if (req.tests == "gunsizes") { yield return Guard(GunSizes(), "gun sizes"); yield break; }
-
-            int n = Math.Min(5, heroes.Count);
-            short x0 = 0, y0 = 0; bool ok = false;
-            Locked(() => ok = Lineup(n, out x0, out y0));
-            var line = new Check { name = "line up", passed = ok, summary = ok ? "row at " + x0 + "," + y0 : "no free row" }; result.checks.Add(line);
-            for (int i = 0; i < n; i++) { var h = heroes[i]; line.details.Add(h.heroBean.Name + " cell " + h.cellX + "," + h.cellY + " local " + h.transform.localPosition + " world " + h.transform.position + " active " + h.gameObject.activeInHierarchy); }
-
-            var eq = new Check { name = "route 1 clothes and guns put on", passed = true }; result.checks.Add(eq);
-            Locked(() =>
-            {
-                if (n > 1) Dress(heroes[1], "sas", "881010", eq);
-                if (n > 3) Dress(heroes[3], "phoenix", "883010", eq);
-            });
-            yield return new WaitForSecondsRealtime(1f);
-            var ov = new Check { name = "route 2 overlays", passed = true }; result.checks.Add(ov);
-            foreach (var (i, agent) in new[] { (2, "sas"), (4, "phoenix") })
-            {
-                if (i >= n) continue;
-                var o = AgentOverlay.Attach(heroes[i], agent);
-                if (o == null) { ov.passed = false; ov.details.Add(agent + ": not attached"); } else { overlays.Add(o); ov.details.Add(o.Note); }
-            }
-            float s0 = 1f; Locked(() => s0 = CamearControl.getInstance().getScale());
-            // let the game move the drawn figures to their new cells, then aim at the middle one
-            SetClock(1f); yield return new WaitForSecondsRealtime(0.4f); SetClock(0f);
-            var mid = heroes[n / 2];
-            foreach (var z in new[] { 0.2f, 0.26f })
-            {
-                Aim(mid, s0 * z, line);
-                yield return new WaitForSecondsRealtime(1.5f);
-                Locked(() => line.details.Add("after aim: scale " + CamearControl.getInstance().getScale() + " screen pos of middle colonist " + CamearControl.getInstance().mapPoint2ScreenPoint(mid.transform.localPosition) + " of " + Screen.width + "x" + Screen.height));
-                yield return Shot("agents-still-" + Mathf.RoundToInt(z * 100));
-            }
-            // close-ups of the two route-1 colonists (clothes and the gun in hand)
-            foreach (var (i, tag) in new[] { (1, "sas"), (3, "phoenix"), (2, "sas-route2"), (4, "phoenix-route2") })
-            {
-                if (i >= n) continue;
-                Aim(heroes[i], s0 * 0.2f, null);
-                yield return new WaitForSecondsRealtime(1.2f);
-                yield return Shot("close-" + tag);
-            }
-            SetClock(1f);
-            for (int k = 0; k < 3; k++)
-            {
-                yield return new WaitForSecondsRealtime(2.5f);
-                Aim(mid, s0 * 0.26f, null);
-                yield return new WaitForSecondsRealtime(0.5f);
-                yield return Shot("agents-moving-" + k);
-            }
-            SetClock(0f);
+            if (req.tests == "fight" || req.tests == "all") yield return Guard(FightAll(), "fight");
+            if (req.tests == "hand" || req.tests == "all") yield return Guard(Hands(), "hand");
         }
 
-        // The camera may be locked or following something after the save loads.
-        void Aim(BaseHero h, float scale, Check c)
+        Check CheckDefs()
         {
-            Locked(() =>
-            {
-                try
+            var c = new Check { name = "rows, bench, tech, patches", passed = true };
+            int w = 0;
+            foreach (var g in CsData.Guns)
+                for (int q = 0; q < 4; q++)
                 {
-                    var cam = CamearControl.getInstance();
-                    cam.enableMove(); cam.endFollow();
-                    var p = h.transform.localPosition;
-                    cam.setTo(p.x, p.y, scale);
+                    var r = ImplDef<T_WeaponDef>.getDataID(g.Row(q));
+                    if (r == null) { c.passed = false; c.details.Add("missing weapon " + g.Row(q)); continue; }
+                    w++;
+                    if (q == 0) c.details.Add(g.Name + " q1: ATK " + r.ATK + " x" + r.Attack_Bullet + ", mag " + r.Max_Bullet + ", reload " + r.Reload + ", range " + r.Range + ", armour pierce " + r.AntiArmor + ", icon " + (r.Sprite_RawIcon != null));
                 }
-                catch (Exception e) { c?.details.Add("aim: " + e.Message); }
-            });
+            foreach (var g in CsData.Guns)
+            {
+                var p = ImplDef<F_ProductListDef>.getDataID(g.RecipeId);
+                if (p == null) { c.passed = false; c.details.Add("missing recipe " + g.RecipeId); }
+                else if (p.OutMaterial != "18_" + g.Row(0) + "_1") { c.passed = false; c.details.Add("recipe " + p.ID + " makes " + p.OutMaterial); }
+            }
+            var b = ImplDef<F_ManufactureDef>.getDataID(CsData.BenchId);
+            if (b == null) { c.passed = false; c.details.Add("missing bench"); } else c.details.Add("bench " + b.Name + " products " + b.ProductID);
+            var t = ImplDef<TechnologyDef>.getDataID(CsData.TechId);
+            if (t == null) { c.passed = false; c.details.Add("missing tech"); }
+            else c.details.Add("tech " + t.Name + " after " + t.Pre_technology + " unlocks " + t.Building_unlock + " at " + t.HexGridX + "," + t.HexGridY + " researched " + t.isUnlock());
+            var u = ImplDef<TechnologyUnlockItemDef>.getDataID(CsData.BenchUnlockId);
+            if (u == null) { c.passed = false; c.details.Add("missing unlock item"); } else c.details.Add("unlock item aims at " + u.AimItem);
+            if (CsPatches.H == null) { c.passed = false; c.details.Add("patches not applied: " + CsPatches.Error); }
+            else foreach (var m in CsPatches.H.GetPatchedMethods()) c.details.Add("patched " + m.DeclaringType?.Name + "." + m.Name);
+            c.summary = w + "/24 weapon rows; " + string.Join("; ", CsDefLoader.Report);
+            return c;
         }
 
-        void CloseDialogs()
+        // ---- fight ----
+        IEnumerator FightAll()
         {
-            try { foreach (var d in UnityEngine.Object.FindObjectsOfType<OfflineDialog>()) d.closeDialog(); }
-            catch (Exception e) { Log("close dialogs: " + e.Message); }
+            var list = ImplDef<MonsterDef>.beans;
+            monsterId = list.Count > 0 ? list[0].ID : null;
+            result.checks.Add(new Check { name = "test monster", info = true, passed = monsterId != null, summary = monsterId + " " + (list.Count > 0 ? list[0].Name : "") });
+            if (monsterId == null) yield break;
+            var h = heroes[0];
+            // alone, far from the other colonists (they would shoot the monsters too)
+            var spot = new Check { name = "quiet spot", info = true, passed = true }; result.checks.Add(spot);
+            bool ok = false; Locked(() => ok = MoveAway(h, 25, spot));
+            if (!ok) { spot.passed = false; yield break; }
+            Locked(() => h.setRunAI(AI_Base.AI_TYPE.战斗));
+            foreach (var g in CsData.Guns) yield return Guard(Fight(h, g), "fight " + g.Key);
+            Locked(() => h.backBaseAI());
         }
 
-        // Moves the first n colonists onto one row, two cells apart, near the first one.
-        bool Lineup(int n, out short x0, out short y0)
+        bool MoveAway(BaseHero h, int clear, Check c)
         {
-            var first = heroes[0];
-            for (int r = 0; r < 30; r++)
-                for (int dy = -r; dy <= r; dy++)
+            var others = heroes.Where(o => o != h).Select(o => new Vector2(o.cellX, o.cellY)).ToList();
+            int rows = MapGlobal.CellRow, lines = MapGlobal.CellLine;
+            for (int r = 0; r < Math.Max(rows, lines); r += 3)
+                for (int a = 0; a < Math.Max(8, r); a++)
                 {
-                    short sx = (short)(first.cellX - n), sy = (short)(first.cellY + dy);
+                    double ang = a * 2 * Math.PI / Math.Max(8, r);
+                    int x = h.cellX + (int)(r * Math.Cos(ang)), y = h.cellY + (int)(r * Math.Sin(ang));
+                    if (others.Any(o => Mathf.Abs(o.x - x) < clear && Mathf.Abs(o.y - y) < clear)) continue;
                     bool free = true;
-                    for (int i = 0; i < n && free; i++)
-                    {
-                        short x = (short)(sx + 2 * i);
-                        free = MapTools.isCellInRealMapRect(x, sy) && PassableHandler.isPersonPassable(x, sy, heroes[i]);
-                    }
+                    for (int i = x - 8; i <= x + 8 && free; i++)
+                        for (int j = y - 8; j <= y + 8 && free; j++)
+                            free = MapTools.isCellInRealMapRect(i, j) && PassableHandler.isPersonPassable((short)i, (short)j, h);
                     if (!free) continue;
-                    for (int i = 0; i < n; i++) Place(heroes[i], (short)(sx + 2 * i), sy);
-                    x0 = sx; y0 = sy; return true;
+                    Place(h, (short)x, (short)y);
+                    c.summary = "colonist " + h.heroBean.Name + " at " + x + "," + y;
+                    return true;
                 }
-            x0 = y0 = 0; return false;
+            c.summary = "no open area " + clear + " cells from everyone";
+            return false;
         }
 
         static void Place(BaseHero r, short x, short y)
@@ -163,35 +128,74 @@ namespace CsArsenal
             r.setCell(x, y); r.roleBean?.setCell(x, y); MapGrid.getInstance().tryPlace_Role(r, x, y);
         }
 
-        void Dress(BaseHero h, string agent, string gunId, Check c)
+        IEnumerator Fight(BaseHero h, GunSpec g)
         {
-            var hb = h.heroBean; var gd = Game;
-            // the save's colonists wear sealed suits (armour + leg armour slots) that cover clothes and hats
-            foreach (var e in hb.cloths)
-                if (e != null && (e.getEquipType() == 2 || e.getEquipType() == 7) && e.hasEquip()) { hb.takeOffEquip(e); c.details.Add(hb.Name + " took off slot " + e.getEquipType()); }
-            foreach (var cs in CsData.Clothes)
+            var c = new Check { name = "fight " + g.Name }; result.checks.Add(c);
+            var def = ImplDef<T_WeaponDef>.getDataID(g.Row(0));
+            int rangeCells = (def.Range - 16) / 32;           // the table's Range is in cells, the loaded row in pixels
+            bool zeus = g.Category == "zeus";
+            int dist = zeus ? 2 : Math.Max(2, Math.Min(rangeCells - 2, 7));
+            int want = zeus ? 1 : 3;
+            var spawned = new List<FWMonsterBean>();
+            long cp0 = 0;
+            int hits0 = CsStats.Get(CsStats.Hits, g.Key), hs0 = CsStats.Get(CsStats.Headshots, g.Key), ex0 = CsStats.Get(CsStats.Executes, g.Key), k0 = CsStats.Get(CsStats.Kills, g.Key);
+            Locked(() =>
             {
-                if (cs.Agent != agent) continue;
-                FWRoleEquip slot = null;
-                foreach (var e in hb.cloths) if (e != null && e.getEquipType() == cs.Slot) { slot = e; break; }
-                if (slot == null) { c.passed = false; c.details.Add(agent + " " + cs.Id + ": no slot " + cs.Slot); continue; }
-                var thing = FWThingUtils.createThing(gd.nextUid(), 17, cs.Id, 1);
-                thing.hp = (float)ImplDef<T_ClothDef>.getDataID(cs.Id).HP;
-                hb.takeOn(slot, thing, false);
-                c.details.Add(hb.Name + " wears " + cs.Name);
+                Arm(h, g.Row(0), c); Refresh(h, c);
+                cp0 = Game.getCreditPoint();
+                for (int a = 0; a < 360 && spawned.Count < want; a += 20)
+                {
+                    double ang = a * Math.PI / 180;
+                    short mx = (short)(h.cellX + (int)Math.Round(dist * Math.Cos(ang))), my = (short)(h.cellY + (int)Math.Round(dist * Math.Sin(ang)));
+                    if (!MapTools.isCellInRealMapRect(mx, my) || !PassableHandler.isPersonPassable(mx, my, h)) continue;
+                    var m = GMCommand.getInstance().Monster_AddMoster(monsterId, 2, mx, my);
+                    if (m != null) { m.setHp(zeus ? 1200 : 1500); spawned.Add(m); a += 40; }
+                }
+            });
+            if (spawned.Count == 0) { c.summary = "no free cell for monsters"; yield break; }
+            lock (CsStats.Sources) { CsStats.Watched.Clear(); CsStats.Sources.Clear(); foreach (var m in spawned) CsStats.Watched.Add(m.getUID()); }
+            AimAt(h.transform.localPosition, CamearControl.getInstance().getScale() * 0.5f, null);
+            SetClock(1f);
+            float t0 = Time.realtimeSinceStartup; bool shot = false;
+            while (Time.realtimeSinceStartup - t0 < 40 && spawned.Any(m => !m.isDead()))
+            {
+                yield return new WaitForSecondsRealtime(0.5f);
+                if (!shot && CsStats.Get(CsStats.Hits, g.Key) > hits0) { shot = true; yield return Shot("fight-" + g.Key); }
             }
-            Arm(h, gunId, c);
-            Refresh(h, c);
+            SetClock(0f);
+            long cp1 = 0; Locked(() => cp1 = Game.getCreditPoint());
+            int hits = CsStats.Get(CsStats.Hits, g.Key) - hits0, hs = CsStats.Get(CsStats.Headshots, g.Key) - hs0, ex = CsStats.Get(CsStats.Executes, g.Key) - ex0, kills = CsStats.Get(CsStats.Kills, g.Key) - k0;
+            int dead = spawned.Count(m => m.isDead());
+            lock (CsStats.Sources) { foreach (var kv in CsStats.Sources) c.details.Add("hit by " + kv.Key + " x" + kv.Value); CsStats.Watched.Clear(); }
+            Locked(() => c.details.Add("shooter weapon " + h.heroBean.CurWeapon?.getWeaponDef()?.ID + ", AI " + h.getRunAI()?.GetType().Name + ", hp " + h.heroBean.getHp()));
+            Locked(() => { foreach (var m in spawned) if (!m.isDead() && m.getRole() is BaseMonster bm) try { GMCommand.getInstance().Monster_RemoveMoster(bm); } catch { } });
+            c.summary = $"{dead}/{spawned.Count} dead in {Time.realtimeSinceStartup - t0:0.0}s at {dist} cells; hits {hits}, headshots {hs}, executions {ex}, kills {kills}, credits {cp1 - cp0:+#;-#;0} (expected {(long)kills * g.KillReward:+#;0})";
+            // the save's other colonists join in (they come running), so judge only this gun: it hit, every kill it made
+            // paid its reward exactly, Zeus executed, and the USP's first shot on an unhurt monster was a headshot
+            c.passed = hits > 0 && cp1 - cp0 == (long)kills * g.KillReward && (!zeus || ex > 0) && (g.Key != "usp_silencer" || hs > 0);
         }
 
-        // takeOn changes the data; the drawing is rebuilt by HeroAnim.refreshEquip
-        static void Refresh(BaseHero h, Check c)
+        // ---- hand ----
+        IEnumerator Hands()
         {
-            var anim = h.GetComponentInChildren<HeroAnim>(true);
-            if (anim == null) { c?.details.Add(h.heroBean.Name + ": no HeroAnim"); return; }
-            anim.refreshEquip();
+            var c = new Check { name = "guns in hand", info = true, passed = true }; result.checks.Add(c);
+            var h = heroes[0];
+            float s0 = 1f; Locked(() => s0 = CamearControl.getInstance().getScale());
+            Locked(() => h.setRunAI(AI_Base.AI_TYPE.战斗));
+            SetClock(1f); yield return new WaitForSecondsRealtime(2f);
+            foreach (var g in CsData.Guns)
+            {
+                Locked(() => { Arm(h, g.Row(0), c); Refresh(h, c); });
+                yield return new WaitForSecondsRealtime(1f);
+                for (int pass = 0; pass < 2; pass++) { AimAt(h.transform.localPosition, s0 * 0.2f, c); yield return new WaitForSecondsRealtime(0.6f); }
+                Locked(() => c.details.Add(g.Key + " screen " + CamearControl.getInstance().mapPoint2ScreenPoint(h.transform.localPosition)));
+                yield return Shot("hand-" + g.Key);
+            }
+            SetClock(0f);
+            Locked(() => h.backBaseAI());
         }
 
+        // ---- helpers ----
         void Arm(BaseHero h, string gunId, Check c)
         {
             var hb = h.heroBean;
@@ -199,40 +203,13 @@ namespace CsArsenal
             var thing = FWThingUtils.createThing(Game.nextUid(), 18, gunId, 1);
             thing.hp = ImplDef<T_WeaponDef>.getDataID(gunId).HP;
             hb.takeOn(hb.weapons[0], thing, false);
-            c.details.Add(hb.Name + " holds " + ImplDef<T_WeaponDef>.getDataID(gunId).Name);
         }
 
-        // Eight colonists in a row, each with one gun: the game's own rifle, AK-47 A / A2 / A3, the game's own pistol,
-        // Glock A / A2 / A3. Paused shots at two zoom levels plus the screen position of every colonist (for cropping).
-        static readonly string[] SizeRow = { "10310", "883010", "883012", "883013", "10110", "881010", "881012", "881013" };
-
-        IEnumerator GunSizes()
+        static void Refresh(BaseHero h, Check c)
         {
-            var c = new Check { name = "gun sizes", passed = true }; result.checks.Add(c);
-            var h = heroes[0];
-            float s0 = 1f; Locked(() => s0 = CamearControl.getInstance().getScale());
-            // drafted (fight AI): the game itself picks the weapon stance for the gun type (HeroAnim.indexStandRow)
-            Locked(() => h.setRunAI(AI_Base.AI_TYPE.战斗));
-            SetClock(1f); yield return new WaitForSecondsRealtime(2f);   // the switch to the weapon stance takes a moment
-            foreach (var id in SizeRow)
-            {
-                Locked(() => { Arm(h, id, c); Refresh(h, c); });
-                yield return new WaitForSecondsRealtime(1f);
-                for (int k = 0; k < 3; k++)
-                {
-                    AimAt(h.transform.localPosition, s0 * 0.2f, c);
-                    yield return new WaitForSecondsRealtime(0.7f);
-                    Locked(() =>
-                    {
-                        var anim = h.GetComponentInChildren<HeroAnim>(true);
-                        var p = CamearControl.getInstance().mapPoint2ScreenPoint(h.transform.localPosition);
-                        c.details.Add(id + " shot " + k + " screen " + p + " weaponPose " + (anim != null && anim.isWeaponAction()));
-                    });
-                    yield return Shot("size-" + id + "-" + k);
-                }
-            }
-            SetClock(0f);
-            Locked(() => h.backBaseAI());
+            var anim = h.GetComponentInChildren<HeroAnim>(true);
+            if (anim == null) { c?.details.Add(h.heroBean.Name + ": no HeroAnim"); return; }
+            anim.refreshEquip();
         }
 
         void AimAt(Vector3 p, float scale, Check c)
@@ -244,20 +221,10 @@ namespace CsArsenal
             });
         }
 
-        // Each gun in the hands of the first colonist, camera close, paused, then a few seconds walking.
-        IEnumerator Guns()
+        void CloseDialogs()
         {
-            var c = new Check { name = "guns in hand", passed = true }; result.checks.Add(c);
-            var h = heroes[0];
-            float s0 = 1f; Locked(() => s0 = CamearControl.getInstance().getScale());
-            foreach (var g in CsData.Guns)
-            {
-                Locked(() => { Arm(h, g.Id, c); Refresh(h, c); });
-                Locked(() => CamearControl.getInstance().moveFollow((SpriteObject)h));
-                Locked(() => CamearControl.getInstance().setTo(h.transform.localPosition.x, h.transform.localPosition.y, s0 * 0.18f));
-                yield return new WaitForSecondsRealtime(1.2f);
-                yield return Shot("gun-" + g.Id);
-            }
+            try { foreach (var d in UnityEngine.Object.FindObjectsOfType<OfflineDialog>()) d.closeDialog(); }
+            catch (Exception e) { Log("close dialogs: " + e.Message); }
         }
     }
 }

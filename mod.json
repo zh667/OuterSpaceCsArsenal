@@ -4,5 +4,13 @@
   "packageId": "zh667.csarsenal",
   "csproj": "CsArsenal.csproj",
   "dll": "CsArsenal.dll",
-  "folder": "CsArsenal"
+  "folder": "CsArsenal",
+  "testMods": [
+    {
+      "path": "E:\\projects\\analysis\\os-ref-harmony-3803065949\\content",
+      "folder": "Harmony",
+      "packageId": "com.harmony",
+      "note": "Workshop 3803065949, downloaded without subscribing (tools/workshop_fetch)"
+    }
+  ]
 }

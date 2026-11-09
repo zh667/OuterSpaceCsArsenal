@@ -2,11 +2,12 @@
 <ModXmlManifest>
   <packageId>zh667.csarsenal</packageId>
   <name>CS2 军械</name>
-  <author>zh6657</author>
-  <desc>CS2 军械</desc>
+  <author>zh667</author>
+  <desc>CS2 的枪械进入秩序：新曙光：CS 军械台、科技、配方，原模型原贴图，每把枪都有招牌特效（爆头、击杀奖励等）。需要前置模组 Harmony。</desc>
   <versions>
     <ModMetaVersion>
       <version>v_common</version>
+      <dependencies>com.harmony</dependencies>
       <main>CsArsenal.dll</main>
     </ModMetaVersion>
   </versions>

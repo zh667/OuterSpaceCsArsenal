@@ -21,12 +21,12 @@ AGENTS = {  # agent: (render folder, base outfit per part type, skin names)
     "phoenix": ("tm_phoenix", {"top": "jiake", "bottoms": "jiake", "helmet": "fangdan"},
                 {"top": "CSA_PHX_TOP", "bottoms": "CSA_PHX_BOTTOMS", "helmet": "CSA_PHX_HELMET"}),
 }
-GUNS = [("csa_glock18", "glock18", "handGun", "A"), ("csa_usp_silencer", "usp_silencer", "handGun", "A"), ("csa_hkp2000", "hkp2000", "handGun", "A"),
-        ("csa_p250", "p250", "handGun", "A"), ("csa_elite", "elite", "handGun", "A"), ("csa_taser", "taser", "handGun", "A"), ("csa_ak47", "ak47", "gun", "A"),
-        # size variants for the in-hand comparison (round 0c)
-        ("csa_glock18_a2", "glock18", "handGun", "A2"), ("csa_glock18_a3", "glock18", "handGun", "A3"),
-        ("csa_ak47_a2", "ak47", "gun", "A2"), ("csa_ak47_a3", "ak47", "gun", "A3"),
-        ("csa_glock18_a4", "glock18", "handGun", "A4"), ("csa_ak47_a4", "ak47", "gun", "A4")]
+# CS-1 pistols, style A4 (user 11-09). Attachment name = "csa_" + gun stem (CsData.GunSpec.Key)
+GUNS = [("csa_glock18", "glock18", "handGun", "A4"), ("csa_usp_silencer", "usp_silencer", "handGun", "A4"),
+        ("csa_hkp2000", "hkp2000", "handGun", "A4"), ("csa_p250", "p250", "handGun", "A4"),
+        ("csa_elite", "elite", "handGun", "A4"), ("csa_taser", "taser", "handGun", "A4")]
+WITH_AGENTS = False   # agent outfits (route 1) come back with the agents round
+ICON = 64
 DIRNAME = {"00_side": "side", "00_3": "3", "00_9": "9", "00_front": "front", "00_back": "back"}
 
 def atlas():
@@ -101,7 +101,7 @@ def main():
     rows = read_table(GAME / "def" / "S_CharacterSpineParts.fwr")
     xml = ['<?xml version="1.0" encoding="utf-8"?>', '<ModXmlSpine xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">', "\t<skins>"]
     report = {}
-    for agent, (folder, base, skins) in AGENTS.items():
+    for agent, (folder, base, skins) in (AGENTS.items() if WITH_AGENTS else []):
         cols = agent_colours(R0 / "agents" / "render" / folder / "front.png")
         report[agent] = {"colours": {k: [round(float(x), 3) for x in v] for k, v in cols.items()}, "parts": {}}
         d = OUT / "agents" / "route1" / agent; d.mkdir(parents=True, exist_ok=True)
@@ -123,15 +123,21 @@ def main():
         report[agent]["route2_frames"] = route2(agent, folder)
     xml.append("\t</skins>"); xml.append("\t<weapons>")
     wd = OUT / "weapons"; wd.mkdir(parents=True, exist_ok=True)
+    import shutil
+    shutil.rmtree(OUT / "weapons", ignore_errors=True); shutil.rmtree(OUT / "icons", ignore_errors=True); shutil.rmtree(OUT / "agents", ignore_errors=True)
+    wd = OUT / "weapons"; wd.mkdir(parents=True, exist_ok=True); idir = OUT / "icons"; idir.mkdir(parents=True, exist_ok=True)
     for attach, gun, kind, style in GUNS:
-        stem = gun if style == "A" else gun + "_" + style.lower()
         for v in "sbf":
-            Image.open(R0 / "sprites" / style / f"{gun}_{v}.png").save(wd / f"{stem}_{v}.png")
-        xml.append(f'\t\t<ModSpineWeapon Name="{attach}" WeaponType="{kind}" Texture_T="weapons/{stem}_b.png" Texture_RT="weapons/{stem}_s.png" '
-                   f'Texture_S="weapons/{stem}_s.png" Texture_RB="weapons/{stem}_s.png" Texture_B="weapons/{stem}_f.png" />')
+            Image.open(R0 / "sprites" / style / f"{gun}_{v}.png").save(wd / f"{gun}_{v}.png")
+        xml.append(f'\t\t<ModSpineWeapon Name="{attach}" WeaponType="{kind}" Texture_T="weapons/{gun}_b.png" Texture_RT="weapons/{gun}_s.png" '
+                   f'Texture_S="weapons/{gun}_s.png" Texture_RB="weapons/{gun}_s.png" Texture_B="weapons/{gun}_f.png" />')
+        # item icon: the side view, enlarged with whole pixels to fit ICON x ICON
+        s = Image.open(R0 / "sprites" / style / f"{gun}_s.png").convert("RGBA"); bb = s.getchannel("A").getbbox(); s = s.crop(bb)
+        k = max(1, min((ICON - 4) // s.width, (ICON - 4) // s.height)); s = s.resize((s.width * k, s.height * k), Image.NEAREST)
+        ic = Image.new("RGBA", (ICON, ICON), (0, 0, 0, 0)); ic.paste(s, ((ICON - s.width) // 2, (ICON - s.height) // 2), s); ic.save(idir / f"{gun}.png")
     xml += ["\t</weapons>", "</ModXmlSpine>"]
     (OUT / "role-customize.xml").write_text("\n".join(xml), encoding="utf-8")
-    json.dump(report, open(R0 / "agents" / "assets_report.json", "w"), indent=1)
+    (R0 / "agents").mkdir(parents=True, exist_ok=True); json.dump(report, open(R0 / "agents" / "assets_report.json", "w"), indent=1)
     for a, v in report.items(): print(a, v["colours"], "route2 frames", v["route2_frames"], "parts", sum(1 for x in v["parts"].values() if isinstance(x, list)), "missing", [k for k, x in v["parts"].items() if not isinstance(x, list)][:12])
 
 if __name__ == "__main__":

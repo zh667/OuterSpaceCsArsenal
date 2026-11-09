@@ -7,6 +7,7 @@ public class ModPluginLauncher : BaseModLauncher
     {
         base.launcher();
         setDefLoader(new CsArsenal.CsDefLoader(config));
+        CsArsenal.CsPatches.Apply();   // Harmony is loaded first: manifest dependency com.harmony
         if (CsArsenal.ModBehaviour.Instance != null) return;
         var go = new GameObject("CsArsenal");
         Object.DontDestroyOnLoad(go);
