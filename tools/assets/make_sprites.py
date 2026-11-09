@@ -20,9 +20,12 @@ KIND = {
                 "B": {"s": (50, 36), "b": (16, 36), "f": (14, 46)}, "A_long": {"s": 52, "b": 38, "f": 48}},
 }
 GUNS = {"glock18": "handGun", "usp_silencer": "handGun", "hkp2000": "handGun", "p250": "handGun", "elite": "handGun",
-        "taser": "handGun", "ak47": "gun"}
+        "taser": "handGun", "ak47": "gun",
+        # CS-2
+        "tec9": "handGun", "fiveseven": "handGun", "cz75a": "handGun", "deagle": "handGun", "revolver": "handGun", "mac10": "gun", "mp9": "gun", "mp7": "gun", "mp5sd": "gun", "ump45": "gun", "bizon": "gun", "nova": "gun", "sawedoff": "gun", "mag7": "gun", "xm1014": "gun"}
 CN = {"glock18": "格洛克 18", "usp_silencer": "USP 消音版", "hkp2000": "P2000", "p250": "P250", "elite": "双持贝瑞塔（单把）",
-      "taser": "宙斯 x27", "ak47": "AK-47"}
+      "taser": "宙斯 x27", "ak47": "AK-47",
+      "tec9": "Tec-9", "fiveseven": "FN57", "cz75a": "CZ75", "deagle": "沙漠之鹰", "revolver": "R8 左轮", "mac10": "MAC-10", "mp9": "MP9", "mp7": "MP7", "mp5sd": "MP5-SD", "ump45": "UMP-45", "bizon": "PP 野牛", "nova": "新星", "sawedoff": "截短霰弹枪", "mag7": "MAG-7", "xm1014": "XM1014"}
 REFS = {"gun": "gun__AK47", "handGun": "handgun__p250"}
 
 def unpremul_down(img, W, H):

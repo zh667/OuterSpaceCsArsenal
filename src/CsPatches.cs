@@ -9,7 +9,7 @@ namespace CsArsenal
     //   BaseRole.beHit            headshots, Zeus execution, P250 armour piercing, USP first-shot headshot; afterwards
     //                             kill rewards: the hit took a standing target down (dead or fallen: monsters die,
     //                             animals and people fall first, enemies then become prisoners)
-    //   FWRoleBean.randomHurtPart a headshot on a person hits the brain (the game's own lethal part, DeadType 1)
+    //   (CS-2 signature effects: CsEffects.cs)
     //   BaseHero.doFight_Shoot    Glock: single shots while moving (bursts only when standing); Dual Berettas: the
     //                             second shot goes to another enemy the shooter hates, if one is standing in range
     public static class CsPatches
@@ -30,7 +30,8 @@ namespace CsArsenal
     {
         public static readonly Dictionary<string, int> Hits = new Dictionary<string, int>(), Headshots = new Dictionary<string, int>(),
             Kills = new Dictionary<string, int>(), Executes = new Dictionary<string, int>(), Skipped = new Dictionary<string, int>(),
-            Retargets = new Dictionary<string, int>(), HelmetSaves = new Dictionary<string, int>(), Shots = new Dictionary<string, int>();
+            Retargets = new Dictionary<string, int>(), HelmetSaves = new Dictionary<string, int>(), Shots = new Dictionary<string, int>(),
+            Effects = new Dictionary<string, int>();   // CS-2 signature effects, by "gun what"
         public static long Credits;
         // self-test only: who hits the watched targets (role UID -> "source weapon" counts)
         public static readonly HashSet<long> Watched = new HashSet<long>();
@@ -44,7 +45,7 @@ namespace CsArsenal
     [HarmonyPatch(typeof(BaseRole), nameof(BaseRole.beHit))]
     static class BeHitPatch
     {
-        [ThreadStatic] public static bool ForceHead;
+        [ThreadStatic] static bool headshot;   // this hit was a headshot (Desert Eagle reset)
 
         // dead, fallen, or out of health (some deaths are settled on the next logic update)
         static bool Down(BaseRole r) => r.roleBean == null || r.roleBean.isDead() || r.roleBean.isFallDown() || r.roleBean.getHp() <= 0;
@@ -59,7 +60,10 @@ namespace CsArsenal
                 long uid = __instance.getUID(); bool firstHit;
                 lock (CsStats.EverHit) { firstHit = CsStats.EverHit.Add(uid); if (CsStats.EverHit.Count > 20000) CsStats.EverHit.Clear(); }
                 var g = CsData.ByWeapon(hurtStruct.weaponDef?.ID);
-                if (g == null || Down(__instance)) return;
+                headshot = false;
+                if (Down(__instance)) return;
+                CsEffects.OnHit(__instance, ref hurtStruct, g);   // FN57 shred counts for every attacker
+                if (g == null) return;
                 __state = true;   // a standing target hit by a CS gun: the postfix checks whether this hit took it down
                 CsStats.Add(CsStats.Hits, g.Key);
                 bool person = __instance.roleBean is FWHeroBean;
@@ -74,8 +78,9 @@ namespace CsArsenal
                 if (chance <= 0 || UnityEngine.Random.value >= chance) return;
                 if (person && HelmetBlocks(__instance)) { CsStats.Add(CsStats.HelmetSaves, g.Key); return; }   // the helmet took it
                 CsStats.Add(CsStats.Headshots, g.Key);
-                if (person) ForceHead = true;                                   // randomHurtPart returns the brain
-                else hurtStruct.atk = (int)(hurtStruct.atk * CsData.HeadshotMonsterMul);
+                // damage only (user 11-09): a headshot on a person no longer forces the brain, which killed outright
+                hurtStruct.atk = (int)(hurtStruct.atk * (person ? CsData.HeadshotPersonMul : CsData.HeadshotMonsterMul));
+                headshot = true;
                 Popup(__instance, "爆头");
             }
             catch (Exception e) { Debug.LogWarning("[CsArsenal] beHit: " + e.Message); }
@@ -90,6 +95,7 @@ namespace CsArsenal
                 var g = CsData.ByWeapon(hurtStruct.weaponDef?.ID);
                 if (g == null) return;
                 CsStats.Add(CsStats.Kills, g.Key);
+                CsEffects.OnKill(__instance, hurtStruct, g, headshot);
                 if (!(hurtStruct.from is BaseHero shooter) || shooter.getAlliance() != 1 || __instance.getAlliance() == 1) return;
                 var gd = UserBean.tryGetInstance()?.gameData;
                 if (gd == null) return;
@@ -116,23 +122,8 @@ namespace CsArsenal
             return false;
         }
 
-        static Exception Finalizer(Exception __exception) { ForceHead = false; return __exception; }
 
         static void Popup(BaseRole r, string s) { try { GUI_RoleInfo.showRoleInfo(r, s); } catch { } }
-    }
-
-    [HarmonyPatch(typeof(FWRoleBean), nameof(FWRoleBean.randomHurtPart))]
-    static class HurtPartPatch
-    {
-        static void Postfix(FWRoleBean __instance, ref FWRolePart __result)
-        {
-            if (!BeHitPatch.ForceHead) return;
-            foreach (var p in __instance.parts)
-            {
-                var d = p?.getDef();
-                if (d != null && d.DeadType == 1) { __result = p; return; }
-            }
-        }
     }
 
     [HarmonyPatch(typeof(BaseHero), nameof(BaseHero.doFight_Shoot))]
@@ -179,6 +170,34 @@ namespace CsArsenal
             var foes = mm?.heroManager?.getAllianceFaction(2)?.getRoles();
             if (foes != null) foreach (var f in foes) Consider(f);
             return best;
+        }
+    }
+}
+
+namespace CsArsenal
+{
+    // Game bug (0.9.0020, SpineCombine.createAttachment): the first attachment made from a mod weapon picture gets the
+    // picture's size, every later one made from the same picture comes from the static pathAtlas cache through a
+    // SetRegion overload that scales by 0.01, so it is 1/100 of the size. Each picture is used by two or more slots
+    // (e.g. weapon_handGun_s and weapon_handGunShot_s), and the shot slots are the ones drawn while aiming and firing:
+    // the guns vanished in hand (11-09). Dropping our picture from the cache before each attachment keeps every one on
+    // the first, correct path.
+    [HarmonyLib.HarmonyPatch]
+    static class WeaponAttachmentSizePatch
+    {
+        static System.Reflection.MethodBase TargetMethod() => HarmonyLib.AccessTools.Method(typeof(SpineCombine), "createAttachment");
+        static System.Reflection.FieldInfo cache;
+        public static int Cleared;
+
+        static void Prefix(string useTex, ModSpineWeapon weaponConfig)
+        {
+            try
+            {
+                if (weaponConfig?.Name == null || !weaponConfig.Name.StartsWith("csa_") || useTex == null) return;
+                if (cache == null) cache = HarmonyLib.AccessTools.Field(typeof(SpineCombine), "pathAtlas");
+                if (cache?.GetValue(null) is System.Collections.IDictionary d && d.Contains(useTex)) { d.Remove(useTex); Cleared++; }
+            }
+            catch (System.Exception e) { UnityEngine.Debug.LogWarning("[CsArsenal] weapon attachment: " + e.Message); }
         }
     }
 }

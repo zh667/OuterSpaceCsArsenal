@@ -1,0 +1,144 @@
+{
+ "glock18": {
+  "fire": [
+   "glock18_fire_0.wav"
+  ],
+  "reload": "glock18_reload.wav"
+ },
+ "usp_silencer": {
+  "fire": [
+   "usp_silencer_fire_0.wav",
+   "usp_silencer_fire_1.wav",
+   "usp_silencer_fire_2.wav"
+  ],
+  "reload": "usp_silencer_reload.wav"
+ },
+ "hkp2000": {
+  "fire": [
+   "hkp2000_fire_0.wav",
+   "hkp2000_fire_1.wav",
+   "hkp2000_fire_2.wav"
+  ],
+  "reload": "hkp2000_reload.wav"
+ },
+ "p250": {
+  "fire": [
+   "p250_fire_0.wav"
+  ],
+  "reload": "p250_reload.wav"
+ },
+ "elite": {
+  "fire": [
+   "elite_fire_0.wav",
+   "elite_fire_1.wav",
+   "elite_fire_2.wav"
+  ],
+  "reload": "elite_reload.wav"
+ },
+ "taser": {
+  "fire": [
+   "taser_fire_0.wav"
+  ],
+  "reload": null
+ },
+ "tec9": {
+  "fire": [
+   "tec9_fire_0.wav"
+  ],
+  "reload": "tec9_reload.wav"
+ },
+ "fiveseven": {
+  "fire": [
+   "fiveseven_fire_0.wav"
+  ],
+  "reload": "fiveseven_reload.wav"
+ },
+ "cz75a": {
+  "fire": [
+   "cz75a_fire_0.wav",
+   "cz75a_fire_1.wav",
+   "cz75a_fire_2.wav"
+  ],
+  "reload": "cz75a_reload.wav"
+ },
+ "deagle": {
+  "fire": [
+   "deagle_fire_0.wav",
+   "deagle_fire_1.wav"
+  ],
+  "reload": "deagle_reload.wav"
+ },
+ "revolver": {
+  "fire": [
+   "revolver_fire_0.wav"
+  ],
+  "reload": "revolver_reload.wav"
+ },
+ "mac10": {
+  "fire": [
+   "mac10_fire_0.wav",
+   "mac10_fire_1.wav"
+  ],
+  "reload": "mac10_reload.wav"
+ },
+ "mp9": {
+  "fire": [
+   "mp9_fire_0.wav",
+   "mp9_fire_1.wav",
+   "mp9_fire_2.wav"
+  ],
+  "reload": "mp9_reload.wav"
+ },
+ "mp7": {
+  "fire": [
+   "mp7_fire_0.wav",
+   "mp7_fire_1.wav",
+   "mp7_fire_2.wav"
+  ],
+  "reload": "mp7_reload.wav"
+ },
+ "mp5sd": {
+  "fire": [
+   "mp5sd_fire_0.wav"
+  ],
+  "reload": "mp5sd_reload.wav"
+ },
+ "ump45": {
+  "fire": [
+   "ump45_fire_0.wav"
+  ],
+  "reload": "ump45_reload.wav"
+ },
+ "bizon": {
+  "fire": [
+   "bizon_fire_0.wav",
+   "bizon_fire_1.wav"
+  ],
+  "reload": "bizon_reload.wav"
+ },
+ "nova": {
+  "fire": [
+   "nova_fire_0.wav"
+  ],
+  "reload": "nova_reload.wav"
+ },
+ "sawedoff": {
+  "fire": [
+   "sawedoff_fire_0.wav"
+  ],
+  "reload": "sawedoff_reload.wav"
+ },
+ "mag7": {
+  "fire": [
+   "mag7_fire_0.wav",
+   "mag7_fire_1.wav"
+  ],
+  "reload": "mag7_reload.wav"
+ },
+ "xm1014": {
+  "fire": [
+   "xm1014_fire_0.wav"
+  ],
+  "reload": "xm1014_reload.wav"
+ }
+}

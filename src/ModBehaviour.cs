@@ -18,8 +18,16 @@ namespace CsArsenal
             if (SelfTest.Requested("zh667.csarsenal")) gameObject.AddComponent<SelfTest>();
         }
 
+        bool soundsLoaded;
+
         void Update()
         {
+            // CS2 sounds load once the mod's folder is known (CsDefLoader runs while the game reads its tables)
+            if (!soundsLoaded && CsDefLoader.ResourcesDir != null)
+            {
+                soundsLoaded = true;
+                try { CsSound.Load(gameObject); } catch (Exception e) { Debug.LogWarning("[CsArsenal] sounds: " + e); }
+            }
             try
             {
                 var gd = UserBean.tryGetInstance()?.gameData;

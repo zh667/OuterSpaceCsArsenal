@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModXmlSpine xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<skins>
+		<ModSpineSkin Name="CSA_ATLAS_REPACK" SkinType="adornment">
+		</ModSpineSkin>
 	</skins>
 	<weapons>
 		<ModSpineWeapon Name="csa_glock18" WeaponType="handGun" Texture_T="weapons/glock18_b.png" Texture_RT="weapons/glock18_s.png" Texture_S="weapons/glock18_s.png" Texture_RB="weapons/glock18_s.png" Texture_B="weapons/glock18_f.png" />
@@ -9,5 +11,20 @@
 		<ModSpineWeapon Name="csa_p250" WeaponType="handGun" Texture_T="weapons/p250_b.png" Texture_RT="weapons/p250_s.png" Texture_S="weapons/p250_s.png" Texture_RB="weapons/p250_s.png" Texture_B="weapons/p250_f.png" />
 		<ModSpineWeapon Name="csa_elite" WeaponType="handGun" Texture_T="weapons/elite_b.png" Texture_RT="weapons/elite_s.png" Texture_S="weapons/elite_s.png" Texture_RB="weapons/elite_s.png" Texture_B="weapons/elite_f.png" />
 		<ModSpineWeapon Name="csa_taser" WeaponType="handGun" Texture_T="weapons/taser_b.png" Texture_RT="weapons/taser_s.png" Texture_S="weapons/taser_s.png" Texture_RB="weapons/taser_s.png" Texture_B="weapons/taser_f.png" />
+		<ModSpineWeapon Name="csa_tec9" WeaponType="handGun" Texture_T="weapons/tec9_b.png" Texture_RT="weapons/tec9_s.png" Texture_S="weapons/tec9_s.png" Texture_RB="weapons/tec9_s.png" Texture_B="weapons/tec9_f.png" />
+		<ModSpineWeapon Name="csa_fiveseven" WeaponType="handGun" Texture_T="weapons/fiveseven_b.png" Texture_RT="weapons/fiveseven_s.png" Texture_S="weapons/fiveseven_s.png" Texture_RB="weapons/fiveseven_s.png" Texture_B="weapons/fiveseven_f.png" />
+		<ModSpineWeapon Name="csa_cz75a" WeaponType="handGun" Texture_T="weapons/cz75a_b.png" Texture_RT="weapons/cz75a_s.png" Texture_S="weapons/cz75a_s.png" Texture_RB="weapons/cz75a_s.png" Texture_B="weapons/cz75a_f.png" />
+		<ModSpineWeapon Name="csa_deagle" WeaponType="handGun" Texture_T="weapons/deagle_b.png" Texture_RT="weapons/deagle_s.png" Texture_S="weapons/deagle_s.png" Texture_RB="weapons/deagle_s.png" Texture_B="weapons/deagle_f.png" />
+		<ModSpineWeapon Name="csa_revolver" WeaponType="handGun" Texture_T="weapons/revolver_b.png" Texture_RT="weapons/revolver_s.png" Texture_S="weapons/revolver_s.png" Texture_RB="weapons/revolver_s.png" Texture_B="weapons/revolver_f.png" />
+		<ModSpineWeapon Name="csa_mac10" WeaponType="gun" Texture_T="weapons/mac10_b.png" Texture_RT="weapons/mac10_s.png" Texture_S="weapons/mac10_s.png" Texture_RB="weapons/mac10_s.png" Texture_B="weapons/mac10_f.png" />
+		<ModSpineWeapon Name="csa_mp9" WeaponType="gun" Texture_T="weapons/mp9_b.png" Texture_RT="weapons/mp9_s.png" Texture_S="weapons/mp9_s.png" Texture_RB="weapons/mp9_s.png" Texture_B="weapons/mp9_f.png" />
+		<ModSpineWeapon Name="csa_mp7" WeaponType="gun" Texture_T="weapons/mp7_b.png" Texture_RT="weapons/mp7_s.png" Texture_S="weapons/mp7_s.png" Texture_RB="weapons/mp7_s.png" Texture_B="weapons/mp7_f.png" />
+		<ModSpineWeapon Name="csa_mp5sd" WeaponType="gun" Texture_T="weapons/mp5sd_b.png" Texture_RT="weapons/mp5sd_s.png" Texture_S="weapons/mp5sd_s.png" Texture_RB="weapons/mp5sd_s.png" Texture_B="weapons/mp5sd_f.png" />
+		<ModSpineWeapon Name="csa_ump45" WeaponType="gun" Texture_T="weapons/ump45_b.png" Texture_RT="weapons/ump45_s.png" Texture_S="weapons/ump45_s.png" Texture_RB="weapons/ump45_s.png" Texture_B="weapons/ump45_f.png" />
+		<ModSpineWeapon Name="csa_bizon" WeaponType="gun" Texture_T="weapons/bizon_b.png" Texture_RT="weapons/bizon_s.png" Texture_S="weapons/bizon_s.png" Texture_RB="weapons/bizon_s.png" Texture_B="weapons/bizon_f.png" />
+		<ModSpineWeapon Name="csa_nova" WeaponType="gun" Texture_T="weapons/nova_b.png" Texture_RT="weapons/nova_s.png" Texture_S="weapons/nova_s.png" Texture_RB="weapons/nova_s.png" Texture_B="weapons/nova_f.png" />
+		<ModSpineWeapon Name="csa_sawedoff" WeaponType="gun" Texture_T="weapons/sawedoff_b.png" Texture_RT="weapons/sawedoff_s.png" Texture_S="weapons/sawedoff_s.png" Texture_RB="weapons/sawedoff_s.png" Texture_B="weapons/sawedoff_f.png" />
+		<ModSpineWeapon Name="csa_mag7" WeaponType="gun" Texture_T="weapons/mag7_b.png" Texture_RT="weapons/mag7_s.png" Texture_S="weapons/mag7_s.png" Texture_RB="weapons/mag7_s.png" Texture_B="weapons/mag7_f.png" />
+		<ModSpineWeapon Name="csa_xm1014" WeaponType="gun" Texture_T="weapons/xm1014_b.png" Texture_RT="weapons/xm1014_s.png" Texture_S="weapons/xm1014_s.png" Texture_RB="weapons/xm1014_s.png" Texture_B="weapons/xm1014_f.png" />
 	</weapons>
 </ModXmlSpine>

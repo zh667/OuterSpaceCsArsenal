@@ -25,6 +25,8 @@ AGENTS = {  # agent: (render folder, base outfit per part type, skin names)
 GUNS = [("csa_glock18", "glock18", "handGun", "A4"), ("csa_usp_silencer", "usp_silencer", "handGun", "A4"),
         ("csa_hkp2000", "hkp2000", "handGun", "A4"), ("csa_p250", "p250", "handGun", "A4"),
         ("csa_elite", "elite", "handGun", "A4"), ("csa_taser", "taser", "handGun", "A4")]
+# CS-2 (pistols, SMGs, shotguns)
+GUNS += [("csa_" + k, k, kind, "A4") for k, kind in [("tec9", "handGun"), ("fiveseven", "handGun"), ("cz75a", "handGun"), ("deagle", "handGun"), ("revolver", "handGun"), ("mac10", "gun"), ("mp9", "gun"), ("mp7", "gun"), ("mp5sd", "gun"), ("ump45", "gun"), ("bizon", "gun"), ("nova", "gun"), ("sawedoff", "gun"), ("mag7", "gun"), ("xm1014", "gun")]]
 WITH_AGENTS = False   # agent outfits (route 1) come back with the agents round
 ICON = 64
 DIRNAME = {"00_side": "side", "00_3": "3", "00_9": "9", "00_front": "front", "00_back": "back"}
@@ -121,6 +123,12 @@ def main():
                 report[agent]["parts"][r["Key"]] = list(part.size)
             xml.append("\t\t</ModSpineSkin>")
         report[agent]["route2_frames"] = route2(agent, folder)
+    # The game repacks mod pictures into the character atlas (SpineCombine.loadModSpine -> OptimizeSkin) only when some
+    # installed mod defines a skin; without that the weapon attachments point into the wrong atlas and the guns are
+    # invisible in hand (11-09: all CS guns vanished once the agent skins were switched off). An empty skin, used by
+    # no outfit, makes sure the repack always runs.
+    xml.append('\t\t<ModSpineSkin Name="CSA_ATLAS_REPACK" SkinType="adornment">')
+    xml.append("\t\t</ModSpineSkin>")
     xml.append("\t</skins>"); xml.append("\t<weapons>")
     wd = OUT / "weapons"; wd.mkdir(parents=True, exist_ok=True)
     import shutil

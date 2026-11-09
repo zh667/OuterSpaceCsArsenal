@@ -7,13 +7,24 @@ from mathutils import Vector, Matrix
 a = sys.argv[sys.argv.index("--") + 1:]
 glb, out, tilt, pxl = a[0], a[1], float(a[2]), int(a[3])
 keep_side = a[4] if len(a) > 4 else ""
+# options (comma list): islands = drop small loose parts lying apart from the gun (a spare shell, a loose cylinder);
+# flipF / flipU = the automatic muzzle or up direction came out wrong for this model
+opts = set((a[5] if len(a) > 5 else "").split(","))
 os.makedirs(out, exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 sc = bpy.context.scene
 bpy.ops.import_scene.gltf(filepath=glb)
 for o in bpy.data.objects:
     if o.type == "ARMATURE":
-        o.data.pose_position = "REST"; o.animation_data_clear()
+        if "pose" in opts:   # some rest poses are broken (the R8's grip): use the first frame of an imported clip
+            acts = [x for x in bpy.data.actions]
+            pick = next((x for x in acts if "idle" in x.name.lower()), None) or next((x for x in acts if "draw" in x.name.lower()), None) or (acts[0] if acts else None)
+            if pick is not None:
+                if o.animation_data is None: o.animation_data_create()
+                o.animation_data.action = pick; sc.frame_set(int(pick.frame_range[1] if "draw" in pick.name.lower() and "idle" not in pick.name.lower() else pick.frame_range[0]))
+            print("pose from", pick.name if pick else None, "of", [x.name for x in acts][:12])
+        else:
+            o.data.pose_position = "REST"; o.animation_data_clear()
 meshes = [o for o in bpy.data.objects if o.type == "MESH"]
 keep = [o for o in meshes if "body_hd" in o.name] or [o for o in meshes if "legacy" not in o.name] or meshes
 for o in meshes: o.hide_render = o not in keep
@@ -32,6 +43,44 @@ if keep_side:
         bmesh.ops.delete(bm, geom=[bm.verts[i] for i, w in enumerate(wpos) if (w - mid) * sign < 0], context="VERTS")
         bm.to_mesh(o.data); bm.free()
     bpy.context.view_layer.update()
+if "islands" in opts:
+    import bmesh
+    dg0 = bpy.context.evaluated_depsgraph_get()
+    comps = []   # (object, vertex indices, world bbox min, max)
+    for o in keep:
+        e = o.evaluated_get(dg0); m = e.to_mesh(); W = [e.matrix_world @ v.co for v in m.vertices]; e.to_mesh_clear()
+        bm = bmesh.new(); bm.from_mesh(o.data); bm.verts.ensure_lookup_table(); seen = set()
+        for v in bm.verts:
+            if v.index in seen: continue
+            stack, part = [v], []
+            seen.add(v.index)
+            while stack:
+                x = stack.pop(); part.append(x.index)
+                for ed in x.link_edges:
+                    y = ed.other_vert(x)
+                    if y.index not in seen: seen.add(y.index); stack.append(y)
+            ps = [W[i] for i in part]
+            comps.append((o, part, Vector((min(p[k] for p in ps) for k in range(3))), Vector((max(p[k] for p in ps) for k in range(3)))))
+        bm.free()
+    total = sum(len(c[1]) for c in comps); main = max(comps, key=lambda c: len(c[1]))
+    # the gun = the biggest part plus every part touching it (grown until nothing new touches)
+    gmn, gmx = main[2].copy(), main[3].copy(); inside = {id(main)}; grew = True
+    while grew:
+        grew = False; pad = (gmx - gmn) * 0.02
+        for c in comps:
+            if id(c) in inside: continue
+            if all(c[2][k] <= gmx[k] + pad[k] and c[3][k] >= gmn[k] - pad[k] for k in range(3)):
+                inside.add(id(c)); grew = True
+                for k in range(3): gmn[k] = min(gmn[k], c[2][k]); gmx[k] = max(gmx[k], c[3][k])
+    drop = {}
+    for c in comps:
+        if id(c) not in inside and len(c[1]) < 0.05 * total: drop.setdefault(c[0].name, []).extend(c[1])
+    for o in keep:
+        if o.name not in drop: continue
+        bm = bmesh.new(); bm.from_mesh(o.data); bm.verts.ensure_lookup_table()
+        bmesh.ops.delete(bm, geom=[bm.verts[i] for i in drop[o.name]], context="VERTS"); bm.to_mesh(o.data); bm.free()
+    print("islands dropped:", {k: len(v) for k, v in drop.items()}, "of", total, "vertices")
+    bpy.context.view_layer.update()
 dg = bpy.context.evaluated_depsgraph_get()
 pts = []
 for o in keep:
@@ -48,6 +97,8 @@ muzzle_hi = (ehi[1] - ehi[0]) < (elo[1] - elo[0])
 F = Vector((0, 0, 0)); F[L] = 1 if muzzle_hi else -1
 mz = ehi if muzzle_hi else elo; c = (mz[0] + mz[1]) / 2
 U = Vector((0, 0, 0)); U[Uax] = 1 if (c - mn[Uax]) > (mx[Uax] - c) else -1   # more of the gun hangs below the bore
+if "flipF" in opts: F = -F
+if "flipU" in opts: U = -U
 center = (mn + mx) / 2
 cam = bpy.data.cameras.new("c"); cam.type = "ORTHO"; cam.clip_start = 0.001; cam.clip_end = 1000
 co = bpy.data.objects.new("c", cam); sc.collection.objects.link(co); sc.camera = co
@@ -64,7 +115,7 @@ sc.render.film_transparent = True
 sc.render.image_settings.file_format = "PNG"; sc.render.image_settings.color_mode = "RGBA"
 try: sc.view_settings.view_transform = "Standard"
 except Exception: pass
-info = {"glb": glb, "keep": [o.name for o in keep], "size_m": list(size), "axes": {"barrel": L, "up": Uax}, "F": list(F), "U": list(U), "views": {}}
+info = {"glb": glb, "tilt": tilt, "opts": sorted(o for o in opts if o), "keep": [o.name for o in keep], "size_m": list(size), "axes": {"barrel": L, "up": Uax}, "F": list(F), "U": list(U), "views": {}}
 t = math.radians(tilt)
 views = {
     "s": (F, U, F.cross(U)),

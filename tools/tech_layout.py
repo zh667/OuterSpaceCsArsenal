@@ -9,7 +9,7 @@ sys.path.insert(0, r"E:\projects\analysis\outer-space-20261101")
 from extract_tables import read_table
 DEF = Path(r"E:\SteamLibrary\steamapps\common\Outer Space\Outer Space_Data\StreamingAssets\def")
 EF = Path(r"E:\projects\os-ef-turrets\src\EfData.cs")
-WANT = [("cs-1", "ranged-1")]          # (node, parent); later rounds add cs-2..cs-4
+WANT = [("cs-1", "ranged-1"), ("cs-2", "ranged-2"), ("cs-3", "ranged-3"), ("cs-4", "ranged-4")]   # (node, parent)
 rows = [r for r in read_table(DEF / "Science.fwr") if r.get("ScienceGroup") == "Main"]
 pos = {r["ID"]: (float(r["HexGridX"]), float(r["HexGridY"])) for r in rows}
 paths = {r["ID"]: r.get("PathNode") or "" for r in rows}
