@@ -96,13 +96,15 @@ namespace CsArsenal
                 var p = ImplDef<F_ProductListDef>.getDataID(a.RecipeId);
                 if (p == null || p.OutMaterial != "17_" + a.Row(0) + "_1") { c.passed = false; c.details.Add("armour recipe " + a.RecipeId + " " + p?.OutMaterial); }
             }
-            int pool = ImplDef<MapTraderSellDef>.beans.Count(r => r.ID.Length == 5 && r.ID.StartsWith("887"));
+            int expectRows = (CsData.Guns.Count + CsData.Armor.Count) * 4, expectSoldiers = CsData.Guns.Count(g => g.Category != "zeus");
+            int goods = ImplDef<MapTraderBuyDef>.beans.Count(r => r.ID.Length == 5 && r.ID.StartsWith("886") && r.ItemGroup == 1 && r.itemReward != null && r.ItemId == r.itemReward.type + "_" + r.itemReward.id);
+            int purchases = ImplDef<MapTraderSellDef>.beans.Count(r => r.ID.Length == 5 && r.ID.StartsWith("887") && r.ItemGroup == 1);
             int soldiers = ImplDef<ESoliderConfigDef>.beans.Count(r => r.ID.StartsWith(CsData.SoldierBase));
             int squads = ImplDef<E_SquadConfig_Def>.beans.Count(r => r.SoliderSelected != null && r.SoliderSelected.Contains("|" + CsData.SoldierBase));
-            c.details.Add("weapon merchants " + pool + " rows, soldiers " + soldiers + " in " + squads + " squads");
+            c.details.Add("weapon merchants sell " + goods + " and buy " + purchases + " rows (expected " + expectRows + "), soldiers " + soldiers + " in " + squads + " squads");
             var sd = ImplDef<ESoliderConfigDef>.getDataID(CsData.SoldierBase + "0");
             if (sd != null) c.details.Add("soldier " + sd.ID + " " + sd.Name + " equip " + sd.Equip);
-            if (pool != 32 || soldiers != 5 || squads == 0) c.passed = false;
+            if (goods != expectRows || purchases != expectRows || soldiers != expectSoldiers || squads == 0) c.passed = false;
             c.details.Add("config killRewardMultiplier " + CsConfig.Get().killRewardMultiplier);
             var b = ImplDef<F_ManufactureDef>.getDataID(CsData.BenchId);
             if (b == null) { c.passed = false; c.details.Add("missing bench"); } else c.details.Add("bench " + b.Name + " products " + b.ProductID);

@@ -86,23 +86,35 @@ namespace CsArsenal
 
         void AddTraders()
         {
-            // weapon merchants (TradeSellPool / MapTraderSellDef, sold by map caravans): one row per quality, like the game's guns
-            MapTraderSellDef tpl = ImplDef<MapTraderSellDef>.getTemplateDef("493");
-            int n = 0, k = 0;
-            if (tpl == null) Report.Add("no trade pool template 493");
-            else
+            // Map caravans draw their goods from MapTraderBuyDef (weapon merchants: group 1, one row per quality with the
+            // game's weights 80/16/4/1) and buy from the player what MapTraderSellDef lists. Rows go into both tables.
+            var items = new List<(string type, string id, string name, int q, bool armour)>();
+            foreach (var g in CsData.Guns) for (int q = 0; q < 4; q++) items.Add(("18", g.Row(q), g.Name, q, false));
+            foreach (var a in CsData.Armor) for (int q = 0; q < 4; q++) items.Add(("17", a.Row(q), a.Name, q, true));
+            int sold = 0, bought = 0, k = 0;
+            foreach (var it in items)
             {
-                var items = new List<(string id, string name)>();
-                foreach (var g in CsData.Guns) for (int q = 0; q < 4; q++) items.Add(("18_" + g.Row(q), g.Name));
-                foreach (var a in CsData.Armor) for (int q = 0; q < 4; q++) items.Add(("17_" + a.Row(q), a.Name));
-                foreach (var it in items)
+                // goods: templates are the game's own weapon-merchant rows (493..496 standard pistol, 5..8 guerrilla armour)
+                string bt = it.armour ? (5 + it.q).ToString() : (493 + it.q).ToString();
+                MapTraderBuyDef b = ImplDef<MapTraderBuyDef>.getTemplateDef(bt);
+                if (b == null) Report.Add("no merchant goods template " + bt);
+                else
                 {
-                    var r = ImplDef<MapTraderSellDef>.getTemplateDef("493");
-                    r.ID = "887" + (k++).ToString("00"); r.mod = cfg; r.ItemId = it.id; r.DescItem = it.name;
-                    Replace(r); n++;
+                    b.ID = "886" + k.ToString("00"); b.mod = cfg; b.ItemId = it.type + "_" + it.id; b.DescItem = it.name;
+                    b.itemReward = new FWRewardBean(int.Parse(it.type), it.id, 0);
+                    Replace(b); sold++;
                 }
+                MapTraderSellDef s = ImplDef<MapTraderSellDef>.getTemplateDef("493");
+                if (s == null) Report.Add("no merchant purchase template 493");
+                else
+                {
+                    s.ID = "887" + k.ToString("00"); s.mod = cfg; s.ItemId = it.type + "_" + it.id; s.DescItem = it.name;
+                    s.itemReward = new FWRewardBean(int.Parse(it.type), it.id, 0);
+                    Replace(s); bought++;
+                }
+                k++;
             }
-            Report.Add("weapon merchant rows " + n);   // MapTraderSellDef: what map caravans (FWCaravan) sell
+            Report.Add("weapon merchant goods " + sold + ", purchases " + bought);
         }
 
         void AddSoldiers()
