@@ -20,6 +20,12 @@ namespace CsArsenal
         public string Row(int q) => Base + q;
     }
 
+    public class ArmorSpec
+    {
+        public string Base, Template, Name, Desc, RecipeId, Materials; public int DefendAdd, Price, Workload = 30; public float HeadProtect = -1f;
+        public string Row(int q) => Base + q;
+    }
+
     public static class CsData
     {
         public const string BenchId = "884", BenchTemplate = "140", BenchUnlockId = "88401", BenchUnlockTemplate = "2334";
@@ -34,7 +40,7 @@ namespace CsArsenal
                 Desc = "T 阵营的经典手枪。【连发切换】站定时三连发，移动时自动切成单发。【经济局】用它击杀的奖励 ×1.5。" },
             new GunSpec { Base = "8811", Key = "usp_silencer", Name = "USP 消音版", Side = "CT", AtkMul = 1.1f, RangeAdd = 3,
                 Price = 4200, Headshot = 0.08f, KillReward = 1500, RecipeId = "88601", Materials = "12_15_40|12_16_80|12_58_2",
-                Desc = "CT 阵营的消音手枪，安静而精准。【无声暗杀】对满血目标的第一枪必定爆头。" },
+                Desc = "CT 阵营的消音手枪，安静而精准。【无声暗杀】对从没受过伤的目标，第一枪必定爆头。" },
             new GunSpec { Base = "8812", Key = "hkp2000", Name = "P2000", Side = "CT", AtkMul = 0.75f, ReloadMul = 0.45f,
                 Price = 4200, Headshot = 0.06f, KillReward = 1500, RecipeId = "88602", Materials = "12_15_40|12_16_80|12_58_2",
                 Desc = "CT 阵营的警用手枪。【警用快充】打空弹匣后换弹时间 −55%。" },
@@ -48,6 +54,19 @@ namespace CsArsenal
                 Price = 5000, Headshot = 0f, KillReward = 3000, RecipeId = "88605", Materials = "12_15_30|12_55_20|12_59_2|12_25_1", Workload = 50,
                 Desc = "近距离电击枪，只有一发。【电击处决】目标剩余生命不超过 1500 时直接击杀，否则造成 400 伤害；打完约 30 秒充能。" },
         };
+
+        // Kevlar: the game's own looks (cloned rows keep their skins); four quality rows each like the templates
+        public static readonly List<ArmorSpec> Armor = new List<ArmorSpec>
+        {
+            new ArmorSpec { Base = "8820", Template = "1252", Name = "凯夫拉防弹衣", DefendAdd = 4, Price = 3800, RecipeId = "88606",
+                Materials = "12_16_40|12_1_20|12_58_2", Desc = "CS 同款防弹背心。比同档护甲多 4 点防御。" },
+            new ArmorSpec { Base = "8821", Template = "1751", Name = "凯夫拉头盔", DefendAdd = 2, HeadProtect = 0.5f, Price = 2600, RecipeId = "88607",
+                Materials = "12_16_30|12_1_10|12_58_1", Desc = "CS 同款头盔。【防爆头】被爆头的几率减半（所有头盔都按自己的头部保护降低被爆头的几率）。" },
+        };
+
+        // enemies: copies of the game's tier-1 guerrilla (soldier 0) carrying one CS pistol each, added (0..1) to the
+        // tier-1 squads that already use soldiers 0 or 1; their guns drop like the game's (T_Weapon.Drop)
+        public const string SoldierTemplate = "0", SoldierBase = "8890";
 
         static Dictionary<string, GunSpec> byRow;
         public static GunSpec ByWeapon(string weaponId)
@@ -64,6 +83,7 @@ namespace CsArsenal
         public static string TechDetail()
         {
             var names = new List<string>(); foreach (var g in Guns) names.Add(g.Name);
+            foreach (var a in Armor) names.Add(a.Name);
             return "解锁 CS 军械台，可制造：" + string.Join("、", names) + "。";
         }
     }

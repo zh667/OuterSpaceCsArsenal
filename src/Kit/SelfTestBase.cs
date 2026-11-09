@@ -8,7 +8,8 @@ using UnityEngine;
 namespace CsArsenal.Kit
 {
     // Self-test inside the isolated copy of the game (tools/run_isolated.py). It runs only when
-    // <game>/ModSelfTest.json exists, and refuses to do anything unless the game keeps its data in the test folder
+    // <game>/ModSelfTest.<packageId>.json exists (named after the mod: the copy also holds the player's other mods,
+    // and with one shared name every mod's self-test started at once and fought over the same save), and refuses to do anything unless the game keeps its data in the test folder
     // (the copy's product name is "OS ModTests"), so it never touches the player's saves. It loads the requested save,
     // runs the mod's tests (RunTests), writes <game>/selftest-result.json and quits. A heartbeat file is written every
     // few seconds; run_isolated.py treats a stopped heartbeat as a frozen game and dumps it (tools/freeze_dump.py).
@@ -40,8 +41,13 @@ namespace CsArsenal.Kit
         }
 
         protected static string GameDir => Path.GetDirectoryName(Application.dataPath);
-        static string RequestPath => Path.Combine(GameDir, "ModSelfTest.json");
-        public static bool Requested() { try { return File.Exists(RequestPath); } catch { return false; } }
+        static string requestFile = "ModSelfTest.json";
+        static string RequestPath => Path.Combine(GameDir, requestFile);
+        public static bool Requested(string packageId)
+        {
+            requestFile = "ModSelfTest." + packageId + ".json";
+            try { return File.Exists(RequestPath); } catch { return false; }
+        }
 
         protected Request req;
         protected readonly Result result = new Result();

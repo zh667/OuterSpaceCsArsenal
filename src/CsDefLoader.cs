@@ -19,7 +19,8 @@ namespace CsArsenal
         {
             Report.Clear();
             try { ResourcesDir = cfg.getVersionPath("Resources"); } catch (Exception e) { Debug.LogError("[CsArsenal] path: " + e); }
-            Try("guns", AddGuns); Try("recipes", AddRecipes); Try("bench", AddBench); Try("tech", AddTech);
+            Try("guns", AddGuns); Try("armor", AddArmor); Try("recipes", AddRecipes); Try("bench", AddBench); Try("tech", AddTech);
+            Try("traders", AddTraders); Try("soldiers", AddSoldiers);
             Debug.Log("[CsArsenal] defs: " + string.Join("; ", Report));
         }
 
@@ -67,6 +68,71 @@ namespace CsArsenal
             Report.Add("weapon rows " + n);
         }
 
+        void AddArmor()
+        {
+            int n = 0;
+            foreach (var a in CsData.Armor)
+                for (int q = 0; q < 4; q++)
+                {
+                    T_ClothDef r = ImplDef<T_ClothDef>.getTemplateDef(a.Template + q);
+                    if (r == null) { Report.Add("no armour template " + a.Template + q); continue; }
+                    r.ID = a.Row(q); r.mod = cfg; r.ClassID = a.Base; r.Name = a.Name; r.Desc = a.Desc;
+                    r.Defend += a.DefendAdd; if (a.HeadProtect >= 0) r.HeadProtect = a.HeadProtect;
+                    r.Price = a.Price; r.Obtain = "CS 军械台；商人售卖";
+                    Replace(r); n++;
+                }
+            Report.Add("armour rows " + n);
+        }
+
+        void AddTraders()
+        {
+            // weapon merchants (TradeSellPool / MapTraderSellDef, sold by map caravans): one row per quality, like the game's guns
+            MapTraderSellDef tpl = ImplDef<MapTraderSellDef>.getTemplateDef("493");
+            int n = 0, k = 0;
+            if (tpl == null) Report.Add("no trade pool template 493");
+            else
+            {
+                var items = new List<(string id, string name)>();
+                foreach (var g in CsData.Guns) for (int q = 0; q < 4; q++) items.Add(("18_" + g.Row(q), g.Name));
+                foreach (var a in CsData.Armor) for (int q = 0; q < 4; q++) items.Add(("17_" + a.Row(q), a.Name));
+                foreach (var it in items)
+                {
+                    var r = ImplDef<MapTraderSellDef>.getTemplateDef("493");
+                    r.ID = "887" + (k++).ToString("00"); r.mod = cfg; r.ItemId = it.id; r.DescItem = it.name;
+                    Replace(r); n++;
+                }
+            }
+            Report.Add("weapon merchant rows " + n);   // MapTraderSellDef: what map caravans (FWCaravan) sell
+        }
+
+        void AddSoldiers()
+        {
+            int n = 0;
+            var ids = new List<string>();
+            for (int i = 0; i < CsData.Guns.Count; i++)
+            {
+                var g = CsData.Guns[i];
+                if (g.Category == "zeus") continue;   // a one-shot stun gun is no raider's weapon
+                ESoliderConfigDef s = ImplDef<ESoliderConfigDef>.getTemplateDef(CsData.SoldierTemplate);
+                if (s == null) { Report.Add("no soldier template"); return; }
+                s.ID = CsData.SoldierBase + i; s.mod = cfg;
+                var eq = (s.Equip ?? "").Split('_'); if (eq.Length > 0) eq[0] = g.Row(0); s.Equip = string.Join("_", eq);
+                s.Name = s.Name + "（" + g.Name + "）";
+                Replace(s); ids.Add(s.ID); n++;
+            }
+            int squads = 0;
+            foreach (var sq in ImplDef<E_SquadConfig_Def>.beans)
+            {
+                if (sq == null || sq.SoliderSelected == null || sq.Desc == null || !sq.Desc.StartsWith("1级")) continue;
+                bool uses = false;
+                foreach (var part in sq.SoliderSelected.Split('|')) { var id = part.Split('_')[0]; if (id == "0" || id == "1") uses = true; }
+                if (!uses || sq.SoliderSelected.Contains(CsData.SoldierBase)) continue;
+                var pick = ids[Math.Abs(sq.ID.GetHashCode()) % ids.Count];
+                sq.SoliderSelected += "|" + pick + "_0_1"; squads++;
+            }
+            Report.Add("soldiers " + n + " in " + squads + " tier-1 squads");
+        }
+
         void AddRecipes()
         {
             int n = 0;
@@ -79,6 +145,13 @@ namespace CsArsenal
                 r.Show_Toast = g.Category == "zeus" ? "分类：电击枪" : "分类：手枪";
                 Replace(r); n++;
             }
+            foreach (var a in CsData.Armor)
+            {
+                F_ProductListDef r = ImplDef<F_ProductListDef>.getTemplateDef("61011");
+                r.ID = a.RecipeId; r.mod = cfg; r.Name = a.Name; r.Desc = a.Desc;
+                r.Materials = a.Materials; r.OutMaterial = "17_" + a.Row(0) + "_1"; r.Workload = a.Workload; r.Show_Toast = "分类：护甲";
+                Replace(r); n++;
+            }
             Report.Add("recipes " + n);
         }
 
@@ -87,8 +160,8 @@ namespace CsArsenal
             F_ManufactureDef b = ImplDef<F_ManufactureDef>.getTemplateDef(CsData.BenchTemplate);
             if (b == null) { Report.Add("no bench template"); return; }
             b.ID = CsData.BenchId; b.mod = cfg; b.Name = "CS 军械台";
-            b.Desc = "按 CS2 图纸组装手枪与电击枪的工作台。";
-            var ids = new List<string>(); foreach (var g in CsData.Guns) ids.Add(g.RecipeId);
+            b.Desc = "按 CS2 图纸组装手枪、电击枪和凯夫拉护甲的工作台。";
+            var ids = new List<string>(); foreach (var g in CsData.Guns) ids.Add(g.RecipeId); foreach (var a in CsData.Armor) ids.Add(a.RecipeId);
             b.ProductID = string.Join("|", ids);
             Replace(b);
             TechnologyUnlockItemDef u = ImplDef<TechnologyUnlockItemDef>.getTemplateDef(CsData.BenchUnlockTemplate);

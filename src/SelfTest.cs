@@ -14,6 +14,7 @@ namespace CsArsenal
     //          kills and the credits gained (kill rewards)
     //   hand   each gun in a drafted colonist's hands (screenshots)
     //   all    defs + fight + hand
+    //   debug  serve the debug channel (Kit/DebugChannel.cs; tools/dbg.py) until "quit" or 30 idle minutes
     public class SelfTest : SelfTestBase
     {
         protected override string ModName => "CsArsenal";
@@ -46,7 +47,22 @@ namespace CsArsenal
             SetClock(1f); yield return new WaitForSecondsRealtime(1.5f); SetClock(0f);
             CloseDialogs();
 
-            if (req.tests == "fight" || req.tests == "all") yield return Guard(FightAll(), "fight");
+            if (req.tests == "debug")
+            {
+                var host = new DebugChannel.Host
+                {
+                    Locked = Locked, Shot = Shot, SetClock = SetClock, GameDir = () => GameDir, Log = Log, Checks = () => result.checks,
+                    StartTest = name =>
+                    {
+                        IEnumerator e = name.StartsWith("fight") ? FightAll() : name == "hand" ? Hands() : null;
+                        if (e == null) return "unknown test " + name;
+                        req.tests = name; StartCoroutine(Guard(e, name.Split(':')[0])); return null;
+                    }
+                };
+                yield return DebugChannel.Serve(host);
+                yield break;
+            }
+            if (req.tests.StartsWith("fight") || req.tests == "all") yield return Guard(FightAll(), "fight");
             if (req.tests == "hand" || req.tests == "all") yield return Guard(Hands(), "hand");
         }
 
@@ -68,6 +84,26 @@ namespace CsArsenal
                 if (p == null) { c.passed = false; c.details.Add("missing recipe " + g.RecipeId); }
                 else if (p.OutMaterial != "18_" + g.Row(0) + "_1") { c.passed = false; c.details.Add("recipe " + p.ID + " makes " + p.OutMaterial); }
             }
+            foreach (var a in CsData.Armor)
+                for (int q = 0; q < 4; q++)
+                {
+                    var r = ImplDef<T_ClothDef>.getDataID(a.Row(q));
+                    if (r == null) { c.passed = false; c.details.Add("missing armour " + a.Row(q)); continue; }
+                    if (q == 0) c.details.Add(a.Name + " q1: defend " + r.Defend + ", head protect " + r.HeadProtect + ", slot " + r.getSubType() + ", skin " + r.Skin);
+                }
+            foreach (var a in CsData.Armor)
+            {
+                var p = ImplDef<F_ProductListDef>.getDataID(a.RecipeId);
+                if (p == null || p.OutMaterial != "17_" + a.Row(0) + "_1") { c.passed = false; c.details.Add("armour recipe " + a.RecipeId + " " + p?.OutMaterial); }
+            }
+            int pool = ImplDef<MapTraderSellDef>.beans.Count(r => r.ID.Length == 5 && r.ID.StartsWith("887"));
+            int soldiers = ImplDef<ESoliderConfigDef>.beans.Count(r => r.ID.StartsWith(CsData.SoldierBase));
+            int squads = ImplDef<E_SquadConfig_Def>.beans.Count(r => r.SoliderSelected != null && r.SoliderSelected.Contains("|" + CsData.SoldierBase));
+            c.details.Add("weapon merchants " + pool + " rows, soldiers " + soldiers + " in " + squads + " squads");
+            var sd = ImplDef<ESoliderConfigDef>.getDataID(CsData.SoldierBase + "0");
+            if (sd != null) c.details.Add("soldier " + sd.ID + " " + sd.Name + " equip " + sd.Equip);
+            if (pool != 32 || soldiers != 5 || squads == 0) c.passed = false;
+            c.details.Add("config killRewardMultiplier " + CsConfig.Get().killRewardMultiplier);
             var b = ImplDef<F_ManufactureDef>.getDataID(CsData.BenchId);
             if (b == null) { c.passed = false; c.details.Add("missing bench"); } else c.details.Add("bench " + b.Name + " products " + b.ProductID);
             var t = ImplDef<TechnologyDef>.getDataID(CsData.TechId);
@@ -90,17 +126,25 @@ namespace CsArsenal
             if (monsterId == null) yield break;
             var h = heroes[0];
             // alone, far from the other colonists (they would shoot the monsters too)
-            var spot = new Check { name = "quiet spot", info = true, passed = true }; result.checks.Add(spot);
-            bool ok = false; Locked(() => ok = MoveAway(h, 25, spot));
-            if (!ok) { spot.passed = false; yield break; }
+            var spot = new Check { name = "quiet spots", info = true, passed = true }; result.checks.Add(spot);
             Locked(() => h.setRunAI(AI_Base.AI_TYPE.战斗));
-            foreach (var g in CsData.Guns) yield return Guard(Fight(h, g), "fight " + g.Key);
+            string only = req.tests.StartsWith("fight:") ? req.tests.Substring(6) : null;   // fight:taser = one gun
+            foreach (var g in CsData.Guns)
+            {
+                if (only != null && g.Key != only) continue;
+                // a fresh spot for every gun: colonists who came running to help stay around the last one
+                bool ok = false; Locked(() => ok = MoveAway(h, 30, spot));
+                if (!ok) { spot.passed = false; break; }
+                spot.details.Add(g.Key + ": " + spot.summary);
+                SetClock(1f); yield return new WaitForSecondsRealtime(0.5f); SetClock(0f);
+                yield return Guard(Fight(h, g), "fight " + g.Key);
+            }
             Locked(() => h.backBaseAI());
         }
 
         bool MoveAway(BaseHero h, int clear, Check c)
         {
-            var others = heroes.Where(o => o != h).Select(o => new Vector2(o.cellX, o.cellY)).ToList();
+            var others = heroes.Where(o => o != h).Select(o => new Vector2(o.cellX, o.cellY)).ToList();   // where they are now
             int rows = MapGlobal.CellRow, lines = MapGlobal.CellLine;
             for (int r = 0; r < Math.Max(rows, lines); r += 3)
                 for (int a = 0; a < Math.Max(8, r); a++)
@@ -134,13 +178,15 @@ namespace CsArsenal
             var def = ImplDef<T_WeaponDef>.getDataID(g.Row(0));
             int rangeCells = (def.Range - 16) / 32;           // the table's Range is in cells, the loaded row in pixels
             bool zeus = g.Category == "zeus";
-            int dist = zeus ? 2 : Math.Max(2, Math.Min(rangeCells - 2, 7));
+            int dist = zeus ? 4 : Math.Max(2, Math.Min(rangeCells - 2, 7));   // closer than ~3 cells the colonist punches instead
             int want = zeus ? 1 : 3;
             var spawned = new List<FWMonsterBean>();
             long cp0 = 0;
             int hits0 = CsStats.Get(CsStats.Hits, g.Key), hs0 = CsStats.Get(CsStats.Headshots, g.Key), ex0 = CsStats.Get(CsStats.Executes, g.Key), k0 = CsStats.Get(CsStats.Kills, g.Key);
+            int rt0 = CsStats.Get(CsStats.Retargets, g.Key), sk0 = CsStats.Get(CsStats.Skipped, g.Key), sh0 = CsStats.Get(CsStats.Shots, g.Key);
             Locked(() =>
             {
+                try { h.heroBean.addHp(100000); } catch { }   // a hurt colonist keeps away from fights: start each one healthy
                 Arm(h, g.Row(0), c); Refresh(h, c);
                 cp0 = Game.getCreditPoint();
                 for (int a = 0; a < 360 && spawned.Count < want; a += 20)
@@ -149,7 +195,8 @@ namespace CsArsenal
                     short mx = (short)(h.cellX + (int)Math.Round(dist * Math.Cos(ang))), my = (short)(h.cellY + (int)Math.Round(dist * Math.Sin(ang)));
                     if (!MapTools.isCellInRealMapRect(mx, my) || !PassableHandler.isPersonPassable(mx, my, h)) continue;
                     var m = GMCommand.getInstance().Monster_AddMoster(monsterId, 2, mx, my);
-                    if (m != null) { m.setHp(zeus ? 1200 : 1500); spawned.Add(m); a += 40; }
+                    // the USP's "unhurt target" check needs the monster's own full health; the others get more to chew on
+                    if (m != null) { if (g.Key != "usp_silencer") m.setHp(zeus ? 1200 : 1500); spawned.Add(m); a += 40; }
                 }
             });
             if (spawned.Count == 0) { c.summary = "no free cell for monsters"; yield break; }
@@ -161,6 +208,12 @@ namespace CsArsenal
             {
                 yield return new WaitForSecondsRealtime(0.5f);
                 if (!shot && CsStats.Get(CsStats.Hits, g.Key) > hits0) { shot = true; yield return Shot("fight-" + g.Key); }
+                if (zeus && Mathf.RoundToInt((Time.realtimeSinceStartup - t0) * 2) % 10 == 0)
+                    Locked(() =>
+                    {
+                        var m0 = spawned[0]; var mr = m0.getRole();
+                        c.details.Add($"t={Time.realtimeSinceStartup - t0:0} AI {h.getRunAI()?.GetType().Name}, weapon {h.heroBean.CurWeapon?.getWeaponDef()?.ID}, monster hp {m0.getHp():0} at {(mr != null ? MathTool.getDistanceI(h.localPos.x, h.localPos.y, mr.localPos.x, mr.localPos.y) : -1)}px, hated {h.roleBean.fightHatreds?.hatreds?.Count}");
+                    });
             }
             SetClock(0f);
             long cp1 = 0; Locked(() => cp1 = Game.getCreditPoint());
@@ -169,10 +222,16 @@ namespace CsArsenal
             lock (CsStats.Sources) { foreach (var kv in CsStats.Sources) c.details.Add("hit by " + kv.Key + " x" + kv.Value); CsStats.Watched.Clear(); }
             Locked(() => c.details.Add("shooter weapon " + h.heroBean.CurWeapon?.getWeaponDef()?.ID + ", AI " + h.getRunAI()?.GetType().Name + ", hp " + h.heroBean.getHp()));
             Locked(() => { foreach (var m in spawned) if (!m.isDead() && m.getRole() is BaseMonster bm) try { GMCommand.getInstance().Monster_RemoveMoster(bm); } catch { } });
-            c.summary = $"{dead}/{spawned.Count} dead in {Time.realtimeSinceStartup - t0:0.0}s at {dist} cells; hits {hits}, headshots {hs}, executions {ex}, kills {kills}, credits {cp1 - cp0:+#;-#;0} (expected {(long)kills * g.KillReward:+#;0})";
+            c.summary = $"{dead}/{spawned.Count} dead in {Time.realtimeSinceStartup - t0:0.0}s at {dist} cells; hits {hits}, headshots {hs}, executions {ex}, kills {kills}, credits {cp1 - cp0:+#;-#;0}";
             // the save's other colonists join in (they come running), so judge only this gun: it hit, every kill it made
             // paid its reward exactly, Zeus executed, and the USP's first shot on an unhurt monster was a headshot
-            c.passed = hits > 0 && cp1 - cp0 == (long)kills * g.KillReward && (!zeus || ex > 0) && (g.Key != "usp_silencer" || hs > 0);
+            int rt = CsStats.Get(CsStats.Retargets, g.Key) - rt0, sk = CsStats.Get(CsStats.Skipped, g.Key) - sk0;
+            c.details.Add("shots fired " + (CsStats.Get(CsStats.Shots, g.Key) - sh0));
+            if (g.Key == "elite") c.details.Add("second shots sent to another enemy: " + rt);
+            if (g.Key == "glock18") c.details.Add("burst shots skipped while moving: " + sk);
+            if (g.Key == "usp_silencer") c.details.Add("headshots " + hs + " of " + hits + " hits on " + spawned.Count + " monsters fresh monsters");
+            long reward = (long)Math.Round(kills * g.KillReward * CsConfig.Get().killRewardMultiplier);
+            c.passed = hits > 0 && cp1 - cp0 == reward && (!zeus || ex > 0) && (g.Key != "usp_silencer" || hs > 0) && (g.Key != "elite" || rt > 0);
         }
 
         // ---- hand ----

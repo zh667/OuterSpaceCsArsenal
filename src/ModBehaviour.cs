@@ -15,7 +15,7 @@ namespace CsArsenal
         void Awake()
         {
             Instance = this;
-            if (SelfTest.Requested()) gameObject.AddComponent<SelfTest>();
+            if (SelfTest.Requested("zh667.csarsenal")) gameObject.AddComponent<SelfTest>();
         }
 
         void Update()

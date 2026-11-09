@@ -10,7 +10,8 @@ namespace CsArsenal
     //                             kill rewards: the hit took a standing target down (dead or fallen: monsters die,
     //                             animals and people fall first, enemies then become prisoners)
     //   FWRoleBean.randomHurtPart a headshot on a person hits the brain (the game's own lethal part, DeadType 1)
-    //   BaseHero.doFight_Shoot    Glock: single shots while moving (bursts only when standing)
+    //   BaseHero.doFight_Shoot    Glock: single shots while moving (bursts only when standing); Dual Berettas: the
+    //                             second shot goes to another enemy the shooter hates, if one is standing in range
     public static class CsPatches
     {
         public static Harmony H;
@@ -28,11 +29,14 @@ namespace CsArsenal
     public static class CsStats
     {
         public static readonly Dictionary<string, int> Hits = new Dictionary<string, int>(), Headshots = new Dictionary<string, int>(),
-            Kills = new Dictionary<string, int>(), Executes = new Dictionary<string, int>(), Skipped = new Dictionary<string, int>();
+            Kills = new Dictionary<string, int>(), Executes = new Dictionary<string, int>(), Skipped = new Dictionary<string, int>(),
+            Retargets = new Dictionary<string, int>(), HelmetSaves = new Dictionary<string, int>(), Shots = new Dictionary<string, int>();
         public static long Credits;
         // self-test only: who hits the watched targets (role UID -> "source weapon" counts)
         public static readonly HashSet<long> Watched = new HashSet<long>();
         public static readonly Dictionary<string, int> Sources = new Dictionary<string, int>();
+        // targets hit by anything at all since the game started (the USP's "unhurt target")
+        public static readonly HashSet<long> EverHit = new HashSet<long>();
         public static void Add(Dictionary<string, int> d, string k) { lock (d) { d.TryGetValue(k, out int v); d[k] = v + 1; } }
         public static int Get(Dictionary<string, int> d, string k) { lock (d) { return d.TryGetValue(k, out int v) ? v : 0; } }
     }
@@ -52,6 +56,8 @@ namespace CsArsenal
             {
                 if (CsStats.Watched.Count > 0 && CsStats.Watched.Contains(__instance.getUID()))
                     CsStats.Add(CsStats.Sources, (hurtStruct.from == null ? "null" : hurtStruct.from.GetType().Name) + " " + (hurtStruct.weaponDef?.ID ?? "-") + " " + hurtStruct.atkType);
+                long uid = __instance.getUID(); bool firstHit;
+                lock (CsStats.EverHit) { firstHit = CsStats.EverHit.Add(uid); if (CsStats.EverHit.Count > 20000) CsStats.EverHit.Clear(); }
                 var g = CsData.ByWeapon(hurtStruct.weaponDef?.ID);
                 if (g == null || Down(__instance)) return;
                 __state = true;   // a standing target hit by a CS gun: the postfix checks whether this hit took it down
@@ -64,8 +70,9 @@ namespace CsArsenal
                 }
                 if (g.AntiArmor > 0) hurtStruct.ArmorPenetration = Math.Max(hurtStruct.ArmorPenetration, g.AntiArmor);
                 float chance = g.Headshot;
-                if (g.Key == "usp_silencer" && __instance.roleBean.getHpProgress_总血量() >= 0.999f) chance = 1f;   // unhurt target
+                if (g.Key == "usp_silencer" && firstHit) chance = 1f;   // the first hit a target ever takes
                 if (chance <= 0 || UnityEngine.Random.value >= chance) return;
+                if (person && HelmetBlocks(__instance)) { CsStats.Add(CsStats.HelmetSaves, g.Key); return; }   // the helmet took it
                 CsStats.Add(CsStats.Headshots, g.Key);
                 if (person) ForceHead = true;                                   // randomHurtPart returns the brain
                 else hurtStruct.atk = (int)(hurtStruct.atk * CsData.HeadshotMonsterMul);
@@ -86,11 +93,27 @@ namespace CsArsenal
                 if (!(hurtStruct.from is BaseHero shooter) || shooter.getAlliance() != 1 || __instance.getAlliance() == 1) return;
                 var gd = UserBean.tryGetInstance()?.gameData;
                 if (gd == null) return;
-                gd.addCP(g.KillReward, "CS 击杀奖励");
-                lock (CsStats.Kills) CsStats.Credits += g.KillReward;
-                Popup(shooter, "+" + g.KillReward + " 信用点");
+                long reward = (long)Math.Round(g.KillReward * CsConfig.Get().killRewardMultiplier);
+                if (reward <= 0) return;
+                gd.addCP(reward, "CS 击杀奖励");
+                lock (CsStats.Kills) CsStats.Credits += reward;
+                Popup(shooter, "+" + reward + " 信用点");
             }
             catch (Exception e) { Debug.LogWarning("[CsArsenal] kill reward: " + e.Message); }
+        }
+
+        // any helmet stops a headshot with its own head protection (T_ClothDef.HeadProtect; 凯夫拉头盔 0.5)
+        static bool HelmetBlocks(BaseRole r)
+        {
+            var hb = r.roleBean as FWHeroBean;
+            if (hb?.cloths == null) return false;
+            foreach (var e in hb.cloths)
+                if (e != null && e.getEquipType() == 1 && e.hasEquip())
+                {
+                    float p = e.getClothDef()?.HeadProtect ?? 0f;
+                    return p > 0 && UnityEngine.Random.value < p;
+                }
+            return false;
         }
 
         static Exception Finalizer(Exception __exception) { ForceHead = false; return __exception; }
@@ -113,20 +136,49 @@ namespace CsArsenal
     }
 
     [HarmonyPatch(typeof(BaseHero), nameof(BaseHero.doFight_Shoot))]
-    static class GlockPatch
+    static class ShootPatch
     {
-        // Glock: the burst is three shots (shootIndex 0..2); while moving only the first one is fired
-        static bool Prefix(BaseHero __instance, int shootIndex)
+        static bool Prefix(BaseHero __instance, ref SpriteObject target, int shootIndex)
         {
             try
             {
                 var w = __instance.heroBean?.CurWeapon?.getWeaponDef();
                 var g = CsData.ByWeapon(w?.ID);
-                if (g == null || g.Key != "glock18" || shootIndex % 3 == 0) return true;
-                if (__instance.mod_Move != null && !__instance.mod_Move.isFinish()) { CsStats.Add(CsStats.Skipped, g.Key); return false; }
+                if (g == null) return true;
+                CsStats.Add(CsStats.Shots, g.Key);
+                if (g.Key == "glock18" && shootIndex % 3 != 0 && __instance.mod_Move != null && !__instance.mod_Move.isFinish())
+                { CsStats.Add(CsStats.Skipped, g.Key); return false; }   // moving: single shots
+                if (g.Key == "elite" && shootIndex % 2 == 1)
+                {
+                    var other = OtherEnemy(__instance, target, w.Range);
+                    if (other != null) { target = other; CsStats.Add(CsStats.Retargets, g.Key); }
+                }
             }
             catch { }
             return true;
+        }
+
+        // another standing enemy in the shooter's range, nearest to the first target: the shooter's hated ones,
+        // the map's monsters, and people of the hostile side (alliance 2)
+        static SpriteObject OtherEnemy(BaseHero h, SpriteObject current, int rangePx)
+        {
+            SpriteObject best = null; float bestD = float.MaxValue;
+            void Consider(SpriteObject s)
+            {
+                if (s == null || s == current || s == h) return;
+                if (s is BaseRole r && (r.roleBean == null || r.roleBean.isDead() || r.roleBean.isFallDown() || r.getAlliance() == h.getAlliance())) return;
+                if (MathTool.getDistanceI(h.localPos.x, h.localPos.y, s.localPos.x, s.localPos.y) > rangePx) return;
+                float d = current == null ? 0 : MathTool.getDistanceI(current.localPos.x, current.localPos.y, s.localPos.x, s.localPos.y);
+                if (d < bestD) { best = s; bestD = d; }
+            }
+            var list = h.roleBean?.fightHatreds?.hatreds;
+            if (list != null) foreach (var it in list) Consider(it?.getHateSprite());
+            var mm = MapManager.getInstance();
+            var monsters = mm?.monsterManager?.getMonsters();
+            if (monsters != null) foreach (var m in monsters) Consider(m);
+            var foes = mm?.heroManager?.getAllianceFaction(2)?.getRoles();
+            if (foes != null) foreach (var f in foes) Consider(f);
+            return best;
         }
     }
 }

@@ -174,7 +174,9 @@ def main():
     for p in (res, beat, log):
         if p.exists():
             p.unlink()
-    (RUNTIME / "ModSelfTest.json").write_text(json.dumps({"save": save, "tests": a.tests}), encoding="utf-8")
+    for old in RUNTIME.glob("ModSelfTest*.json"):   # older kits start their self-test on ModSelfTest.json
+        old.unlink()
+    (RUNTIME / ("ModSelfTest." + MOD["packageId"] + ".json")).write_text(json.dumps({"save": save, "tests": a.tests}), encoding="utf-8")
     si = subprocess.STARTUPINFO()
     si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     si.wShowWindow = 7   # minimised, not activated: the player's window keeps the focus
