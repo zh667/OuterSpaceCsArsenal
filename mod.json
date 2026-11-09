@@ -1,0 +1,8 @@
+{
+  "name": "CsArsenal",
+  "title": "CS2 军械",
+  "packageId": "zh667.csarsenal",
+  "csproj": "CsArsenal.csproj",
+  "dll": "CsArsenal.dll",
+  "folder": "CsArsenal"
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModXmlManifest>
+  <packageId>zh667.csarsenal</packageId>
+  <name>CS2 军械</name>
+  <author>zh6657</author>
+  <desc>CS2 军械</desc>
+  <versions>
+    <ModMetaVersion>
+      <version>v_common</version>
+      <main>CsArsenal.dll</main>
+    </ModMetaVersion>
+  </versions>
+</ModXmlManifest>
