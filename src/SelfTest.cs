@@ -108,8 +108,8 @@ namespace CsArsenal
                 if (p == null || p.OutMaterial != "17_" + a.Row(0) + "_1") { c.passed = false; c.details.Add("armour recipe " + a.RecipeId + " " + p?.OutMaterial); }
             }
             int expectRows = (CsData.Guns.Count + CsData.Armor.Count) * 4, expectSoldiers = CsData.Guns.Count(g => g.Category != "zeus");
-            int goods = ImplDef<MapTraderBuyDef>.beans.Count(r => r.ID.Length == 5 && r.ID.StartsWith("886") && r.ItemGroup == 1 && r.itemReward != null && r.ItemId == r.itemReward.type + "_" + r.itemReward.id);
-            int purchases = ImplDef<MapTraderSellDef>.beans.Count(r => r.ID.Length == 5 && r.ID.StartsWith("887") && r.ItemGroup == 1);
+            int goods = ImplDef<MapTraderBuyDef>.beans.Count(r => r.ID.Length == 6 && r.ID.StartsWith("886") && r.ItemGroup == 1 && r.itemReward != null && r.ItemId == r.itemReward.type + "_" + r.itemReward.id);
+            int purchases = ImplDef<MapTraderSellDef>.beans.Count(r => r.ID.Length == 6 && r.ID.StartsWith("887") && r.ItemGroup == 1);
             var soldierIds = new HashSet<string>(Enumerable.Range(0, CsData.Guns.Count).Select(CsData.SoldierId));
             int soldiers = ImplDef<ESoliderConfigDef>.beans.Count(r => soldierIds.Contains(r.ID));
             int squads = ImplDef<E_SquadConfig_Def>.beans.Count(r => r.SoliderSelected != null && r.SoliderSelected.Split('|').Any(s => soldierIds.Contains(s.Split('_')[0])));
@@ -121,24 +121,37 @@ namespace CsArsenal
             int withSound = CsData.Guns.Count(g => ImplDef<T_WeaponDef>.getDataID(g.Row(0))?.ATKMusic?.StartsWith(CsSound.Prefix) == true);
             c.details.Add("CS2 sounds: " + withSound + "/" + CsData.Guns.Count + " guns, files missing " + CsSound.Missing + (CsSound.Error != null ? ", error " + CsSound.Error : ""));
             if (withSound != CsData.Guns.Count || CsSound.Missing > 0) c.passed = false;
-            var b = ImplDef<F_ManufactureDef>.getDataID(CsData.BenchId);
-            if (b == null) { c.passed = false; c.details.Add("missing bench"); } else c.details.Add("bench " + b.Name + " products " + b.ProductID);
-            var t = ImplDef<TechnologyDef>.getDataID(CsData.TechId);
-            if (t == null) { c.passed = false; c.details.Add("missing tech"); }
-            else c.details.Add("tech " + t.Name + " after " + t.Pre_technology + " unlocks " + t.Building_unlock + " at " + t.HexGridX + "," + t.HexGridY + " researched " + t.isUnlock());
-            var u = ImplDef<TechnologyUnlockItemDef>.getDataID(CsData.BenchUnlockId);
-            if (u == null) { c.passed = false; c.details.Add("missing unlock item"); } else c.details.Add("unlock item aims at " + u.AimItem);
-            var t2 = ImplDef<TechnologyDef>.getDataID(CsData.Tech2Id);
-            int tier2 = CsData.Guns.Count(g => g.Tier == 2), locks = 0;
-            foreach (var g in CsData.Guns.Where(g => g.RecipeUnlockId != null))
+            // recipes on the game's own benches, locked behind the CS techs
+            int placed = 0, wanted = 0;
+            void OnBench(string bench, string recipe)
             {
-                var ru = ImplDef<TechnologyUnlockItemDef>.getDataID(g.RecipeUnlockId);
-                if (ru != null && ru.AimItem == "1002_" + g.RecipeId && t2 != null && t2.NonBuilding_unlock.Split('|').Contains(g.RecipeUnlockId)) locks++;
-                else c.details.Add("recipe unlock missing for " + g.Key);
+                wanted++;
+                var bd = ImplDef<F_ManufactureDef>.getDataID(bench);
+                if (bd != null && (bd.ProductID ?? "").Split('|').Contains(recipe)) placed++; else c.details.Add("recipe " + recipe + " missing on bench " + bench);
             }
-            if (t2 == null) { c.passed = false; c.details.Add("missing tech " + CsData.Tech2Id); }
-            else c.details.Add("tech " + t2.Name + " after " + t2.Pre_technology + " at " + t2.HexGridX + "," + t2.HexGridY + ", recipe unlocks " + locks + "/" + tier2 + ", researched " + t2.isUnlock());
-            if (locks != tier2) c.passed = false;
+            foreach (var g in CsData.Guns) foreach (var id in CsData.GunBenches[g.Tier]) OnBench(id, g.RecipeId);
+            foreach (var a in CsData.Armor) foreach (var id in CsData.ArmorBenches) OnBench(id, a.RecipeId);
+            c.details.Add("recipes on the game's benches " + placed + "/" + wanted);
+            if (placed != wanted) c.passed = false;
+            int locks = 0, lockable = 0;
+            foreach (var (rid, uid, tech) in CsData.Guns.Select(g => (g.RecipeId, g.RecipeUnlockId, "cs-" + g.Tier)).Concat(CsData.Armor.Select(a => (a.RecipeId, a.RecipeUnlockId, CsData.TechId))))
+            {
+                lockable++;
+                var td = ImplDef<TechnologyDef>.getDataID(tech);
+                var ru = uid == null ? null : ImplDef<TechnologyUnlockItemDef>.getDataID(uid);
+                var pr = ImplDef<F_ProductListDef>.getDataID(rid);
+                if (td != null && ru != null && ru.AimItem == "1002_" + rid && td.NonBuilding_unlock.Split('|').Contains(uid) && pr?.getTechDef()?.ID == tech) locks++;
+                else c.details.Add("recipe " + rid + " not locked behind " + tech);
+            }
+            c.details.Add("recipes locked behind their CS tech " + locks + "/" + lockable);
+            if (locks != lockable) c.passed = false;
+            foreach (var tid in new[] { CsData.TechId, CsData.Tech2Id, CsData.Tech3Id })
+            {
+                var td = ImplDef<TechnologyDef>.getDataID(tid);
+                if (td == null) { c.passed = false; c.details.Add("missing tech " + tid); }
+                else c.details.Add("tech " + td.Name + " after " + td.Pre_technology + " at " + td.HexGridX + "," + td.HexGridY + ", researched in this save " + UserBean.getInstance().techonology_isUnLock(tid));
+            }
+            if (ImplDef<F_ManufactureDef>.getDataID("884") != null) { c.passed = false; c.details.Add("the old CS bench 884 still exists"); }
             if (CsPatches.H == null) { c.passed = false; c.details.Add("patches not applied: " + CsPatches.Error); }
             else foreach (var m in CsPatches.H.GetPatchedMethods()) c.details.Add("patched " + m.DeclaringType?.Name + "." + m.Name);
             c.summary = w + "/" + CsData.Guns.Count * 4 + " weapon rows; " + string.Join("; ", CsDefLoader.Report);
@@ -156,12 +169,15 @@ namespace CsArsenal
             // alone, far from the other colonists (they would shoot the monsters too)
             var spot = new Check { name = "quiet spots", info = true, passed = true }; result.checks.Add(spot);
             Locked(() => h.setRunAI(AI_Base.AI_TYPE.战斗));
+            Freeze(h, true);
             // fight:taser = one gun, fight:mp9,nova = some, fight:tier2 = one tier
             string only = req.tests.StartsWith("fight:") ? req.tests.Substring(6) : null;
             var pick = only == null ? null : new HashSet<string>(only.Split(','));
             foreach (var g in CsData.Guns)
             {
                 if (pick != null && !pick.Contains(g.Key) && !pick.Contains("tier" + g.Tier)) continue;
+                bool down = false; Locked(() => down = Down(h));
+                if (down) { result.checks.Add(new Check { name = "shooter", passed = false, summary = h.heroBean?.Name + " is down; the remaining fights were skipped" }); break; }
                 // a fresh spot for every gun: colonists who came running to help stay around the last one
                 bool ok = false; Locked(() => ok = MoveAway(h, 30, spot));
                 if (!ok) { spot.passed = false; break; }
@@ -177,7 +193,38 @@ namespace CsArsenal
                 }
             }
             Locked(() => h.backBaseAI());
+            Freeze(h, false);
         }
+
+        // the other colonists on the map stand still while the tests run (TestFreezePatch skips their logic), and they and
+        // the shooter cannot be hurt: with nobody helping, the shooter once died to the test monsters by the 12th gun
+        // and every later fight ran with a dead man (11-09)
+        readonly Dictionary<long, bool> wasInvincible = new Dictionary<long, bool>();
+        void Freeze(BaseHero keep, bool on)
+        {
+            lock (TestFreezePatch.Frozen)
+            {
+                TestFreezePatch.Frozen.Clear();
+                Locked(() =>
+                {
+                    foreach (var o in MapManager.getInstance().heroManager.getAllianceFaction(1).getRoles())
+                    {
+                        if (o?.roleBean == null) continue;
+                        long uid = o.getUID();
+                        if (on)
+                        {
+                            if (!wasInvincible.ContainsKey(uid)) wasInvincible[uid] = o.roleBean.isInvincible;
+                            o.roleBean.isInvincible = true;
+                            if (o != keep) TestFreezePatch.Frozen.Add(uid);
+                        }
+                        else if (wasInvincible.TryGetValue(uid, out bool was)) o.roleBean.isInvincible = was;
+                    }
+                    if (!on) wasInvincible.Clear();
+                });
+            }
+        }
+
+        static bool Down(BaseHero h) => h.heroBean == null || h.heroBean.isDead() || h.heroBean.isFallDown();
 
         bool MoveAway(BaseHero h, int clear, Check c)
         {
@@ -286,9 +333,9 @@ namespace CsArsenal
         static readonly Dictionary<string, string> RequiredEffect = new Dictionary<string, string>
         {
             ["fiveseven"] = "fiveseven stack", ["cz75a"] = "cz75a fast step", ["mp9"] = "mp9 slow", ["ump45"] = "ump45 close",
-            ["sawedoff"] = "sawedoff ",   // close or far: the monsters may die before they come within 3 cells ["mac10"] = "mac10 burst", ["mp5sd"] = "mp5sd burst", ["bizon"] = "bizon rounds back",
+            ["sawedoff"] = "sawedoff ", ["m4a4"] = "m4a4 stack", ["p90"] = "p90 fast step", ["ssg08"] = "ssg08 burst",   // close or far: the monsters may die before they come within 3 cells ["mac10"] = "mac10 burst", ["mp5sd"] = "mp5sd burst", ["bizon"] = "bizon rounds back",
         };
-        static readonly HashSet<string> KillEffect = new HashSet<string> { "mac10", "mp5sd", "bizon", "deagle" };
+        static readonly HashSet<string> KillEffect = new HashSet<string> { "mac10", "mp5sd", "bizon", "deagle", "ssg08" };
 
         static Dictionary<string, int> Effects(string key)
         {
@@ -304,6 +351,7 @@ namespace CsArsenal
             // a tough monster 6 cells to the right: the colonist aims sideways at it, and only the aiming and firing poses
             // draw the whole gun (standing drafted shows the back or a sliver of the front view)
             if (monsterId == null && ImplDef<MonsterDef>.beans.Count > 0) monsterId = ImplDef<MonsterDef>.beans[0].ID;
+            Freeze(h, true);
             FWMonsterBean dummy = null;
             bool spot = false; Locked(() => spot = MoveAway(h, 30, c));
             // a fresh target for every gun: the old one walks up and the colonist turns to face it
@@ -335,6 +383,7 @@ namespace CsArsenal
                 if (dummy != null && dummy.getRole() is BaseMonster bm) try { GMCommand.getInstance().Monster_RemoveMoster(bm); } catch { }
                 h.backBaseAI();
             });
+            Freeze(h, false);
         }
 
         // ---- helpers ----

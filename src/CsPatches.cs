@@ -75,11 +75,14 @@ namespace CsArsenal
                 if (g.AntiArmor > 0) hurtStruct.ArmorPenetration = Math.Max(hurtStruct.ArmorPenetration, g.AntiArmor);
                 float chance = g.Headshot;
                 if (g.Key == "usp_silencer" && firstHit) chance = 1f;   // the first hit a target ever takes
+                if ((g.Key == "famas" || g.Key == "m4a1_silencer") && CsEffects.TakeCrit(hurtStruct.from)) { chance = 1f; CsStats.Add(CsStats.Effects, g.Key + " crit"); }
                 if (chance <= 0 || UnityEngine.Random.value >= chance) return;
                 if (person && HelmetBlocks(__instance)) { CsStats.Add(CsStats.HelmetSaves, g.Key); return; }   // the helmet took it
                 CsStats.Add(CsStats.Headshots, g.Key);
                 // damage only (user 11-09): a headshot on a person no longer forces the brain, which killed outright
-                hurtStruct.atk = (int)(hurtStruct.atk * (person ? CsData.HeadshotPersonMul : CsData.HeadshotMonsterMul));
+                float mul = person ? CsData.HeadshotPersonMul : CsData.HeadshotMonsterMul;
+                if (g.Key == "ak47") { mul = 3f; CsStats.Add(CsStats.Effects, "ak47 headshot x3"); }
+                hurtStruct.atk = (int)(hurtStruct.atk * mul);
                 headshot = true;
                 Popup(__instance, "爆头");
             }
@@ -139,6 +142,7 @@ namespace CsArsenal
                 CsStats.Add(CsStats.Shots, g.Key);
                 if (g.Key == "glock18" && shootIndex % 3 != 0 && __instance.mod_Move != null && !__instance.mod_Move.isFinish())
                 { CsStats.Add(CsStats.Skipped, g.Key); return false; }   // moving: single shots
+                if ((g.Key == "famas" && shootIndex % 3 == 2) || (g.Key == "m4a1_silencer" && shootIndex == 0)) CsEffects.MarkCrit(__instance);
                 if (g.Key == "elite" && shootIndex % 2 == 1)
                 {
                     var other = OtherEnemy(__instance, target, w.Range);
@@ -176,6 +180,19 @@ namespace CsArsenal
 
 namespace CsArsenal
 {
+    // Self-test only: the save's other colonists stand still during a fight test (they used to run over, shoot the
+    // monsters and take the last hit). Empty outside the tests.
+    [HarmonyLib.HarmonyPatch(typeof(BaseRole), "runLive")]
+    static class TestFreezePatch
+    {
+        public static readonly System.Collections.Generic.HashSet<long> Frozen = new System.Collections.Generic.HashSet<long>();
+        static bool Prefix(BaseRole __instance)
+        {
+            if (Frozen.Count == 0) return true;
+            lock (Frozen) return !Frozen.Contains(__instance.getUID());
+        }
+    }
+
     // Game bug (0.9.0020, SpineCombine.createAttachment): the first attachment made from a mod weapon picture gets the
     // picture's size, every later one made from the same picture comes from the static pathAtlas cache through a
     // SetRegion overload that scales by 0.01, so it is 1/100 of the size. Each picture is used by two or more slots

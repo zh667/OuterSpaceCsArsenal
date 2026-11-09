@@ -5,7 +5,9 @@ def run(args,cwd=AS,to=900): return subprocess.run(args,capture_output=True,text
 tilt=40   # matches round 0 (calibrated against the Glock render, 11-09)
 # 2. the CS-2 guns
 OPTS={"mp9":"islands,flipF","ump45":"islands,flipF","bizon":"islands,flipF","revolver":"islands,pose"}   # R8 rest pose has the grip bent up   # checked by eye on cs2_render_s.jpg
-keys=["tec9","fiveseven","cz75a","deagle","revolver","mac10","mp9","mp7","mp5sd","ump45","bizon","nova","sawedoff","mag7","xm1014"]
+import sys as _s
+KEYS3=["p90","galilar","famas","ak47","m4a4","m4a1_silencer","ssg08","sg556","aug"]
+keys=KEYS3 if "cs3" in _s.argv else ["tec9","fiveseven","cz75a","deagle","revolver","mac10","mp9","mp7","mp5sd","ump45","bizon","nova","sawedoff","mag7","xm1014"]
 for k in keys:
     g=sorted(glob.glob(os.path.join(M,k,"weapon_*.glb")))
     if not g: print(k,"NO GLB", os.listdir(os.path.join(M,k)) if os.path.isdir(os.path.join(M,k)) else "no dir"); continue

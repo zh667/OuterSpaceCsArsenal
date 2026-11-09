@@ -26,5 +26,14 @@
 		<ModSpineWeapon Name="csa_sawedoff" WeaponType="gun" Texture_T="weapons/sawedoff_b.png" Texture_RT="weapons/sawedoff_s.png" Texture_S="weapons/sawedoff_s.png" Texture_RB="weapons/sawedoff_s.png" Texture_B="weapons/sawedoff_f.png" />
 		<ModSpineWeapon Name="csa_mag7" WeaponType="gun" Texture_T="weapons/mag7_b.png" Texture_RT="weapons/mag7_s.png" Texture_S="weapons/mag7_s.png" Texture_RB="weapons/mag7_s.png" Texture_B="weapons/mag7_f.png" />
 		<ModSpineWeapon Name="csa_xm1014" WeaponType="gun" Texture_T="weapons/xm1014_b.png" Texture_RT="weapons/xm1014_s.png" Texture_S="weapons/xm1014_s.png" Texture_RB="weapons/xm1014_s.png" Texture_B="weapons/xm1014_f.png" />
+		<ModSpineWeapon Name="csa_p90" WeaponType="gun" Texture_T="weapons/p90_b.png" Texture_RT="weapons/p90_s.png" Texture_S="weapons/p90_s.png" Texture_RB="weapons/p90_s.png" Texture_B="weapons/p90_f.png" />
+		<ModSpineWeapon Name="csa_galilar" WeaponType="gun" Texture_T="weapons/galilar_b.png" Texture_RT="weapons/galilar_s.png" Texture_S="weapons/galilar_s.png" Texture_RB="weapons/galilar_s.png" Texture_B="weapons/galilar_f.png" />
+		<ModSpineWeapon Name="csa_famas" WeaponType="gun" Texture_T="weapons/famas_b.png" Texture_RT="weapons/famas_s.png" Texture_S="weapons/famas_s.png" Texture_RB="weapons/famas_s.png" Texture_B="weapons/famas_f.png" />
+		<ModSpineWeapon Name="csa_ak47" WeaponType="gun" Texture_T="weapons/ak47_b.png" Texture_RT="weapons/ak47_s.png" Texture_S="weapons/ak47_s.png" Texture_RB="weapons/ak47_s.png" Texture_B="weapons/ak47_f.png" />
+		<ModSpineWeapon Name="csa_m4a4" WeaponType="gun" Texture_T="weapons/m4a4_b.png" Texture_RT="weapons/m4a4_s.png" Texture_S="weapons/m4a4_s.png" Texture_RB="weapons/m4a4_s.png" Texture_B="weapons/m4a4_f.png" />
+		<ModSpineWeapon Name="csa_m4a1_silencer" WeaponType="gun" Texture_T="weapons/m4a1_silencer_b.png" Texture_RT="weapons/m4a1_silencer_s.png" Texture_S="weapons/m4a1_silencer_s.png" Texture_RB="weapons/m4a1_silencer_s.png" Texture_B="weapons/m4a1_silencer_f.png" />
+		<ModSpineWeapon Name="csa_ssg08" WeaponType="gun" Texture_T="weapons/ssg08_b.png" Texture_RT="weapons/ssg08_s.png" Texture_S="weapons/ssg08_s.png" Texture_RB="weapons/ssg08_s.png" Texture_B="weapons/ssg08_f.png" />
+		<ModSpineWeapon Name="csa_sg556" WeaponType="gun" Texture_T="weapons/sg556_b.png" Texture_RT="weapons/sg556_s.png" Texture_S="weapons/sg556_s.png" Texture_RB="weapons/sg556_s.png" Texture_B="weapons/sg556_f.png" />
+		<ModSpineWeapon Name="csa_aug" WeaponType="gun" Texture_T="weapons/aug_b.png" Texture_RT="weapons/aug_s.png" Texture_S="weapons/aug_s.png" Texture_RB="weapons/aug_s.png" Texture_B="weapons/aug_f.png" />
 	</weapons>
 </ModXmlSpine>

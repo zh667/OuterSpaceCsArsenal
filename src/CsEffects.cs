@@ -27,6 +27,20 @@ namespace CsArsenal
         static readonly Dictionary<long, KeyValuePair<int, double>> refund = new Dictionary<long, KeyValuePair<int, double>>();
         static readonly Dictionary<long, double> reset = new Dictionary<long, double>();
         static readonly Dictionary<long, float> rateCarry = new Dictionary<long, float>();
+        static readonly Dictionary<long, double> lastMove = new Dictionary<long, double>();      // role -> last time it moved
+        static readonly Dictionary<long, double> crit = new Dictionary<long, double>();          // shooter -> its next hit is a headshot (until)
+
+        public static void Moved(BaseRole r) { lock (gate) lastMove[r.getUID()] = Now; }
+        static bool Scoped(SpriteObject shooter) => shooter != null && (!lastMove.TryGetValue(shooter.getUID(), out double t) || Now - t >= 1.0);
+
+        // FAMAS third shot of a burst, M4A1-S first shot of a magazine (BaseHero.doFight_Shoot)
+        public static void MarkCrit(BaseRole shooter) { lock (gate) crit[shooter.getUID()] = Now + 1.5; }
+        public static bool TakeCrit(SpriteObject shooter)
+        {
+            if (shooter == null) return false;
+            lock (gate) { if (crit.TryGetValue(shooter.getUID(), out double u)) { crit.Remove(shooter.getUID()); return u >= Now; } }
+            return false;
+        }
 
         static float Active(Dictionary<long, Timed> d, long uid, out int stacks)
         {
@@ -70,6 +84,25 @@ namespace CsArsenal
                             h.atk = (int)(h.atk * Mathf.Clamp(mul, 0.5f, 1.5f)); CsStats.Add(CsStats.Effects, d <= 3f ? "sawedoff close" : "sawedoff far");
                             break;
                         }
+                    case "m4a4":
+                        {
+                            long su = h.from?.getUID() ?? 0;
+                            int n = streak.TryGetValue(su, out var kv) && kv.Key == uid ? kv.Value : 0;
+                            h.atk = (int)(h.atk * (1f + 0.05f * Math.Min(6, n)));
+                            streak[su] = new KeyValuePair<long, int>(uid, n + 1);
+                            h.slowLow = Math.Max(h.slowLow, 0.2f); h.slowFps = Math.Max(h.slowFps, 1f);
+                            CsStats.Add(CsStats.Effects, n > 0 ? "m4a4 stack" : "m4a4 hit");
+                            break;
+                        }
+                    case "sg556":
+                    case "aug":
+                        if (Scoped(h.from))
+                        {
+                            h.atk = (int)(h.atk * 1.3f);
+                            if (g.Key == "aug") h.ArmorPenetration = Math.Min(1f, h.ArmorPenetration + 0.3f);
+                            CsStats.Add(CsStats.Effects, g.Key + " scoped");
+                        }
+                        break;
                     case "xm1014":
                         {
                             long su = h.from?.getUID() ?? 0;
@@ -101,6 +134,7 @@ namespace CsArsenal
                         int r = refund.TryGetValue(su, out var kv) && kv.Value > Now ? kv.Key : 0;
                         refund[su] = new KeyValuePair<int, double>(r + 10, Now + 5); CsStats.Add(CsStats.Effects, "bizon refund"); break;
                     case "deagle": if (headshot) { reset[su] = Now + 3; CsStats.Add(CsStats.Effects, "deagle reset"); } break;
+                    case "ssg08": speed[su] = new Timed { Value = 1.30f, Until = Now + 3 }; CsStats.Add(CsStats.Effects, "ssg08 burst"); break;
                 }
             }
         }
@@ -109,7 +143,7 @@ namespace CsArsenal
         {
             float m = 1f;
             var g = CsData.ByWeapon(h.heroBean?.CurWeapon?.getWeaponDef()?.ID);
-            if (g != null) { if (g.Key == "tec9") m *= 1.10f; else if (g.Key == "mac10") m *= 1.15f; }
+            if (g != null) { if (g.Key == "tec9" || g.Key == "ssg08") m *= 1.10f; else if (g.Key == "mac10") m *= 1.15f; }
             lock (gate) { float b = Active(speed, h.getUID(), out _); if (b > 0) m *= b; }
             return m;
         }
@@ -120,6 +154,7 @@ namespace CsArsenal
             var g = CsData.ByWeapon(w?.ID);
             if (g == null || role == null) return;
             long uid = role.getUID();
+            if (role.mod_Move != null && !role.mod_Move.isFinish()) Moved(role);
             lock (gate)
             {
                 // steps: 0 idle, 1 aiming, 2 firing the magazine, 3 magazine done (reloading: a refund is moot then)
@@ -137,6 +172,7 @@ namespace CsArsenal
                 float rate = 1f;
                 if (g.Key == "tec9" && role.mod_Move != null && !role.mod_Move.isFinish()) rate = 1.3f;
                 else if (g.Key == "cz75a" && fired < 6) rate = 2f;
+                else if (g.Key == "p90" && fired >= 0.8f * w.Max_Bullet * w.Attack_Bullet) rate = 1.3f;
                 if (rate <= 1f || step != 2) return;
                 float extra = TimeInfo.elapsedTime * (rate - 1f);
                 round.caseStep(extra); bullet.caseStep(extra);
@@ -144,7 +180,7 @@ namespace CsArsenal
             }
         }
 
-        public static void Clear() { lock (gate) { shred.Clear(); slow.Clear(); speed.Clear(); streak.Clear(); refund.Clear(); reset.Clear(); rateCarry.Clear(); } }
+        public static void Clear() { lock (gate) { shred.Clear(); slow.Clear(); speed.Clear(); streak.Clear(); refund.Clear(); reset.Clear(); rateCarry.Clear(); lastMove.Clear(); crit.Clear(); } }
     }
 
     [HarmonyPatch(typeof(AimingDevice), nameof(AimingDevice.logic))]
@@ -162,7 +198,12 @@ namespace CsArsenal
     {
         static void Postfix(BaseHero __instance, ref float __result)
         {
-            try { float m = CsEffects.SpeedMul(__instance); if (m != 1f) __result *= m; } catch { }
+            try
+            {
+                float m = CsEffects.SpeedMul(__instance); if (m != 1f) __result *= m;
+                if (__instance.mod_Move != null && !__instance.mod_Move.isFinish()) CsEffects.Moved(__instance);   // SG 553 / AUG scope
+            }
+            catch { }
         }
     }
 

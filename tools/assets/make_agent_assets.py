@@ -27,6 +27,8 @@ GUNS = [("csa_glock18", "glock18", "handGun", "A4"), ("csa_usp_silencer", "usp_s
         ("csa_elite", "elite", "handGun", "A4"), ("csa_taser", "taser", "handGun", "A4")]
 # CS-2 (pistols, SMGs, shotguns)
 GUNS += [("csa_" + k, k, kind, "A4") for k, kind in [("tec9", "handGun"), ("fiveseven", "handGun"), ("cz75a", "handGun"), ("deagle", "handGun"), ("revolver", "handGun"), ("mac10", "gun"), ("mp9", "gun"), ("mp7", "gun"), ("mp5sd", "gun"), ("ump45", "gun"), ("bizon", "gun"), ("nova", "gun"), ("sawedoff", "gun"), ("mag7", "gun"), ("xm1014", "gun")]]
+# CS-3 (rifles, P90, SSG 08)
+GUNS += [("csa_" + k, k, "gun", "A4") for k in ["p90", "galilar", "famas", "ak47", "m4a4", "m4a1_silencer", "ssg08", "sg556", "aug"]]
 WITH_AGENTS = False   # agent outfits (route 1) come back with the agents round
 ICON = 64
 DIRNAME = {"00_side": "side", "00_3": "3", "00_9": "9", "00_front": "front", "00_back": "back"}

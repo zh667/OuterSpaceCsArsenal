@@ -140,5 +140,69 @@
    "xm1014_fire_0.wav"
   ],
   "reload": "xm1014_reload.wav"
+ },
+ "p90": {
+  "fire": [
+   "p90_fire_0.wav",
+   "p90_fire_1.wav"
+  ],
+  "reload": "p90_reload.wav"
+ },
+ "galilar": {
+  "fire": [
+   "galilar_fire_0.wav"
+  ],
+  "reload": "galilar_reload.wav"
+ },
+ "famas": {
+  "fire": [
+   "famas_fire_0.wav",
+   "famas_fire_1.wav",
+   "famas_fire_2.wav"
+  ],
+  "reload": "famas_reload.wav"
+ },
+ "ak47": {
+  "fire": [
+   "ak47_fire_0.wav",
+   "ak47_fire_1.wav",
+   "ak47_fire_2.wav"
+  ],
+  "reload": "ak47_reload.wav"
+ },
+ "m4a4": {
+  "fire": [
+   "m4a4_fire_0.wav",
+   "m4a4_fire_1.wav"
+  ],
+  "reload": "m4a4_reload.wav"
+ },
+ "m4a1_silencer": {
+  "fire": [
+   "m4a1_silencer_fire_0.wav"
+  ],
+  "reload": "m4a1_silencer_reload.wav"
+ },
+ "ssg08": {
+  "fire": [
+   "ssg08_fire_0.wav"
+  ],
+  "reload": "ssg08_reload.wav"
+ },
+ "sg556": {
+  "fire": [
+   "sg556_fire_0.wav",
+   "sg556_fire_1.wav",
+   "sg556_fire_2.wav"
+  ],
+  "reload": "sg556_reload.wav"
+ },
+ "aug": {
+  "fire": [
+   "aug_fire_0.wav",
+   "aug_fire_1.wav",
+   "aug_fire_2.wav"
+  ],
+  "reload": "aug_reload.wav"
  }
 }

@@ -11,7 +11,8 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.pat
 AW = r"E:\projects\CSMCReverse\local_cs2_analysis\all_weapons"
 OUT = os.path.join(ROOT, "res", "Resources", "Sounds")
 KEYS = ["glock18", "usp_silencer", "hkp2000", "p250", "elite", "taser", "tec9", "fiveseven", "cz75a", "deagle", "revolver",
-        "mac10", "mp9", "mp7", "mp5sd", "ump45", "bizon", "nova", "sawedoff", "mag7", "xm1014"]
+        "mac10", "mp9", "mp7", "mp5sd", "ump45", "bizon", "nova", "sawedoff", "mag7", "xm1014",
+        "p90", "galilar", "famas", "ak47", "m4a4", "m4a1_silencer", "ssg08", "sg556", "aug"]
 SR = 22050
 BLENDER = r"E:\Develop\Blender-5.1.0-Beta\blender.exe"   # its audio library (aud, ffmpeg inside) decodes the mp3 sources
 CACHE = os.path.join(tempfile.gettempdir(), "csa_sound_cache")
@@ -32,16 +33,20 @@ def as_wav(paths):
     """source path -> a RIFF wav path (mp3 and other files converted once through Blender)"""
     os.makedirs(CACHE, exist_ok=True); out = {}; todo = []
     for p in paths:
-        if open(p, "rb").read(4) == b"RIFF": out[p] = p; continue
+        src = p
+        if p.lower().endswith(".vsnd"):   # some entries were never decoded: a decoded sibling with the same stem
+            stem = p[:-5]; src = next((stem + e for e in (".wav", ".mp3") if os.path.exists(stem + e)), None)
+            if src is None: out[p] = None; print("NO DECODED FILE", p); continue
+        if open(src, "rb").read(4) == b"RIFF": out[p] = src; continue
         d = os.path.join(CACHE, os.path.basename(os.path.dirname(p)) + "__" + os.path.basename(p) + ".wav"); out[p] = d
-        if not os.path.exists(d): todo.append([p, d])
+        if not os.path.exists(d): todo.append([src, d])
     if todo:
         lst = os.path.join(CACHE, "todo.json"); json.dump(todo, open(lst, "w", encoding="utf-8"))
         sp = os.path.join(CACHE, "conv.py"); open(sp, "w", encoding="utf-8").write(BL_SCRIPT)
         r = subprocess.run([BLENDER, "-b", "--factory-startup", "--python", sp, "--", lst], capture_output=True, text=True, creationflags=0x08000000)
         print("blender converted", len(todo), [l for l in r.stdout.splitlines() if "FAILED" in l][:5])
     for p, d in list(out.items()):
-        if not os.path.exists(d): print("UNREADABLE", p); out[p] = None
+        if d is not None and not os.path.exists(d): print("UNREADABLE", p); out[p] = None
     return out
 
 def read_wav(p):
@@ -92,6 +97,10 @@ def main():
         if not j: print(k, "NO MANIFEST"); continue
         ev = (j["weapon_data"].get("shoot_soundevents") or {})
         fire_ev = ev.get("WEAPON_SOUND_SINGLE") or next(iter(ev.values()), None)
+        if "silencer" in k:   # USP-S / M4A1-S carry the silencer: their silenced shot, not the bare one
+            pre0 = (fire_ev or "").split(".")[0] + "."
+            sil = sorted(e for e in list(shoot) + list(allev) if e.startswith(pre0) and "silenc" in e.lower() and "distant" not in e.lower() and "attach" not in e.lower() and "detach" not in e.lower())
+            if sil: fire_ev = sil[0]
         files = (shoot.get(fire_ev) or allev.get(fire_ev) or {}).get("decoded_files", [])
         # reload: the gun's own events under the same prefix (Weapon_Glock.Clipout, .Clipin, .Slideback ...)
         pre = (fire_ev or "").split(".")[0] + "."
