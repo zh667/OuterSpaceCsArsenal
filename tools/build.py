@@ -25,6 +25,10 @@ def build():
     shutil.copy2(os.path.join(ROOT, "Manifest", "manifest.xml"), os.path.join(dist, "Manifest", "manifest.xml"))
     shutil.copy2(dll, os.path.join(dist, "v_common", "Assemblies", MOD["dll"]))
     print("dll", os.path.getsize(dll), hashlib.sha256(open(dll, "rb").read()).hexdigest())
+    res = os.path.join(ROOT, "res", "Resources")   # pictures + role-customize.xml (tools/assets/make_agent_assets.py)
+    if os.path.isdir(res):
+        shutil.copytree(res, os.path.join(dist, "v_common", "Resources"))
+        n = sum(len(f) for _, _, f in os.walk(res)); print("resources", n, "files")
     return dist
 
 

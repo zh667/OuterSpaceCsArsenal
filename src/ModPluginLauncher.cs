@@ -6,6 +6,7 @@ public class ModPluginLauncher : BaseModLauncher
     public override void launcher()
     {
         base.launcher();
+        setDefLoader(new CsArsenal.CsDefLoader(config));
         if (CsArsenal.ModBehaviour.Instance != null) return;
         var go = new GameObject("CsArsenal");
         Object.DontDestroyOnLoad(go);
