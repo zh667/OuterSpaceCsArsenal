@@ -70,7 +70,10 @@ namespace CsArsenal
             if (Time.realtimeSinceStartup - volumeAt > 2f || gameVolume < 0)
             {
                 volumeAt = Time.realtimeSinceStartup;
-                try { gameVolume = Traverse.Create(AudioManager.GetInstance()).Field("soundVolume").GetValue<float>(); } catch { gameVolume = 1f; }
+                // the player's own settings (设置 → 声音): master and sound switches, master x sound volume. AudioManager's
+                // private soundVolume stayed 1 with both switched off, so the CS shots kept playing in a muted game.
+                try { gameVolume = UserSaver.masterEnable && UserSaver.soundEnable ? Mathf.Clamp01(UserSaver.masterVolume) * Mathf.Clamp01(UserSaver.soundVolume) : 0f; }
+                catch { gameVolume = 1f; }
             }
             return gameVolume;
         }

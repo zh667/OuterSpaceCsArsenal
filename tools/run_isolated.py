@@ -174,7 +174,10 @@ def force_windowed_offscreen():
         if len(b) > 40:
             n = int.from_bytes(b[33:37], "big"); i = 58 + n
             if 0 <= n < 64 and i < len(b) and b[i] in (0, 1):
-                if b[i] == 1: b[i] = 0; info.write_bytes(bytes(b)); print("test copy settings: windowed", info)
+                # silent test copy (user 11-10): sound/music/master/UI switches off, their volumes 0 (the CS gun sounds
+                # follow the game's sound volume, so they go quiet too). Byte 0-3 switches, 4-19 four big-endian floats.
+                b[0:4] = b"\x00\x00\x00\x00"; b[4:20] = b"\x00" * 16
+                b[i] = 0; info.write_bytes(bytes(b)); print("test copy settings: windowed, silent", info)
             else: print("userInfo layout not recognised, left alone:", info)
 
 def keep_offscreen(pid, stop):
