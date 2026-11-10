@@ -263,7 +263,9 @@ namespace CsArsenal
     [HarmonyPatch(typeof(AimingDevice), nameof(AimingDevice.logic))]
     static class AimPatch
     {
-        static bool Prefix(BaseRole ___role, T_WeaponDef ___weaponDef, sbyte ___step, TimeDelay_Game ___readyInteval, TimeDelay_Game ___roundInteval, TimeDelay_Game ___bulletInteval, ref int ___totleBulletSum)
+        static bool Prefix(BaseRole ___role, T_WeaponDef ___weaponDef, sbyte ___step, TimeDelay_Game ___readyInteval, TimeDelay_Game ___roundInteval, TimeDelay_Game ___bulletInteval, ref int ___totleBulletSum) { var pm = CsPerf.Start(); try { return PrefixBody(___role, ___weaponDef, ___step, ___readyInteval, ___roundInteval, ___bulletInteval, ref ___totleBulletSum); } finally { CsPerf.End(CsPerf.H.Aim, pm); } }
+        // timed for the perf log (CsPerf); the work is in PrefixBody
+        static bool PrefixBody(BaseRole ___role, T_WeaponDef ___weaponDef, sbyte ___step, TimeDelay_Game ___readyInteval, TimeDelay_Game ___roundInteval, TimeDelay_Game ___bulletInteval, ref int ___totleBulletSum)
         {
             try
             {
@@ -279,7 +281,9 @@ namespace CsArsenal
     [HarmonyPatch(typeof(BaseHero), nameof(BaseHero.getSpeed))]
     static class SpeedPatch
     {
-        static void Postfix(BaseHero __instance, ref float __result)
+        static void Postfix(BaseHero __instance, ref float __result) { var pm = CsPerf.Start(); try { PostfixBody(__instance, ref __result); } finally { CsPerf.End(CsPerf.H.Speed, pm); } }
+        // timed for the perf log (CsPerf); the work is in PostfixBody
+        static void PostfixBody(BaseHero __instance, ref float __result)
         {
             try
             {

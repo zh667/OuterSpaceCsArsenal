@@ -112,7 +112,8 @@ namespace CsArsenal
         static bool Prefix(SoundStruct __instance, Vector3 localPosition)
         {
             if (!CsSound.Has(__instance.ATKMusic)) return true;
-            CsSound.Play(__instance.ATKMusic, localPosition); return false;
+            var pm = CsPerf.Start(); try { CsSound.Play(__instance.ATKMusic, localPosition); } finally { CsPerf.End(CsPerf.H.Sound, pm); }
+            return false;
         }
     }
 
@@ -122,7 +123,8 @@ namespace CsArsenal
         static bool Prefix(SoundStruct __instance, Vector3 localPosition)
         {
             if (!CsSound.Has(__instance.ReloadMusic)) return true;
-            CsSound.Play(__instance.ReloadMusic, localPosition); return false;
+            var pm = CsPerf.Start(); try { CsSound.Play(__instance.ReloadMusic, localPosition); } finally { CsPerf.End(CsPerf.H.Sound, pm); }
+            return false;
         }
     }
 }

@@ -17,6 +17,8 @@ namespace CsArsenal
         static Sprite sprite;
         SpriteRenderer sr; BaseBullet bullet; Transform anim;
         public bool On;
+        public static int Live;   // tracer components alive (perf log)
+        void OnDestroy() { Live--; }
         public float Length = 46f, Width = 1.6f;
 
         static readonly AccessTools.FieldRef<BulletAnim_Base, float> offx = AccessTools.FieldRefAccess<BulletAnim_Base, float>("offx");
@@ -45,7 +47,7 @@ namespace CsArsenal
             if (tr == null)
             {
                 if (!on) return;
-                tr = b.gameObject.AddComponent<CsTracer>();
+                tr = b.gameObject.AddComponent<CsTracer>(); Live++;
                 var go = new GameObject("csa_tracer"); go.transform.SetParent(b.transform, false);
                 tr.sr = go.AddComponent<SpriteRenderer>(); tr.sr.sprite = Streak();
                 tr.sr.sortingLayerID = FairySortingLayerConfig.getLayerSystemId(SortingDef.LAYERS.Effect);
@@ -57,7 +59,7 @@ namespace CsArsenal
             tr.sr.enabled = on && tr.Length > 0;
             tr.anim = animOf(b) != null ? animOf(b).transform : null;
             tr.ShowGameBullet(!on || tr.Length <= 0);
-            tr.LateUpdate();
+            tr.Follow();
         }
 
         void ShowGameBullet(bool show)
@@ -66,7 +68,9 @@ namespace CsArsenal
             foreach (var r in anim.GetComponentsInChildren<Renderer>(true)) if (r != sr) r.enabled = show;
         }
 
-        void LateUpdate()
+        void LateUpdate() { var pm = CsPerf.Start(); try { Follow(); } finally { CsPerf.End(CsPerf.H.TracerFrame, pm); } }
+
+        void Follow()
         {
             if (!On || sr == null || bullet == null || Length <= 0) return;
             var a = animOf(bullet);
@@ -83,7 +87,9 @@ namespace CsArsenal
     static class TracerPatch
     {
         public static int Tracers;
-        static void Postfix(Bullet_Normal __instance, BulletStruct _bulletStruct)
+        static void Postfix(Bullet_Normal __instance, BulletStruct _bulletStruct) { var pm = CsPerf.Start(); try { PostfixBody(__instance, _bulletStruct); } finally { CsPerf.End(CsPerf.H.Tracer, pm); } }
+        // timed for the perf log (CsPerf); the work is in PostfixBody
+        static void PostfixBody(Bullet_Normal __instance, BulletStruct _bulletStruct)
         {
             try
             {
@@ -100,7 +106,9 @@ namespace CsArsenal
     {
         public static int Spread;
         static readonly System.Random rnd = new System.Random();
-        static void Prefix(ref BulletStruct _bulletStruct)
+        static void Prefix(ref BulletStruct _bulletStruct) { var pm = CsPerf.Start(); try { PrefixBody(ref _bulletStruct); } finally { CsPerf.End(CsPerf.H.Spread, pm); } }
+        // timed for the perf log (CsPerf); the work is in PrefixBody
+        static void PrefixBody(ref BulletStruct _bulletStruct)
         {
             if (!MainThread.onMain) return;   // addBullet re-posts itself to the main thread: spread once, there
             var g = CsData.ByWeapon(_bulletStruct.weaponDef?.ID);
@@ -120,7 +128,9 @@ namespace CsArsenal
         static readonly AccessTools.FieldRef<AimingDevice, int> roundSum = AccessTools.FieldRefAccess<AimingDevice, int>("roundBulletSum");
         static readonly AccessTools.FieldRef<AimingDevice, sbyte> stepOf = AccessTools.FieldRefAccess<AimingDevice, sbyte>("step");
 
-        static void Postfix(AimingDevice __instance, T_WeaponDef ___weaponDef)
+        static void Postfix(AimingDevice __instance, T_WeaponDef ___weaponDef) { var pm = CsPerf.Start(); try { PostfixBody(__instance, ___weaponDef); } finally { CsPerf.End(CsPerf.H.Volley, pm); } }
+        // timed for the perf log (CsPerf); the work is in PostfixBody
+        static void PostfixBody(AimingDevice __instance, T_WeaponDef ___weaponDef)
         {
             if (inside) return;
             var g = CsData.ByWeapon(___weaponDef?.ID);

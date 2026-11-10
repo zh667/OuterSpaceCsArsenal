@@ -14,6 +14,9 @@ namespace CsArsenal
     //          kills and the credits gained (kill rewards)
     //   hand   each gun in a drafted colonist's hands (screenshots)
     //   look   the CS tech nodes in the game's tech tree: CS2 icon on every node (screenshots selftest-tech-<id>.png)
+    //   perf   load test for the perf log (CsPerf): 12 drafted colonists with 12 different CS guns against monsters that
+    //          do not die, at 1x and 3x speed, then the same colonists with the game's own template guns as the control;
+    //          one CsArsenal-perf line per phase (not part of "all")
     //   all    defs + fight + hand + look
     //   debug  serve the debug channel (Kit/DebugChannel.cs; tools/dbg.py) until "quit" or 30 idle minutes
     public class SelfTest : SelfTestBase
@@ -74,6 +77,7 @@ namespace CsArsenal
                 yield return DebugChannel.Serve(host);
                 yield break;
             }
+            if (req.tests == "perf") { yield return Guard(PerfRun(), "performance"); yield break; }
             if (req.tests.StartsWith("fight") || req.tests == "all") yield return Guard(FightAll(), "fight");
             if (req.tests == "hand" || req.tests == "all") yield return Guard(Hands(), "hand");
             if (req.tests == "look" || req.tests == "all") yield return Guard(TechLook(), "look");
@@ -506,6 +510,112 @@ namespace CsArsenal
                 h.backBaseAI();
             });
             Freeze(h, false);
+        }
+
+        // ---- perf: load test for the perf log ----
+        static readonly string[] PerfGuns = { "glock18", "deagle", "p90", "mp9", "nova", "xm1014", "ak47", "m4a4", "awp", "g3sg1", "m249", "negev" };
+
+        IEnumerator PerfRun()
+        {
+            var c = new Check { name = "performance", passed = true }; result.checks.Add(c);
+            CsPerf.Window = 100000f; CsPerf.EchoToGameLog = true;   // the phases flush by hand
+            var list = ImplDef<MonsterDef>.beans; monsterId = list.Count > 0 ? list[0].ID : null;
+            if (monsterId == null) { c.passed = false; c.summary = "no monster kind"; yield break; }
+            var shooters = heroes.Take(PerfGuns.Length).ToList();
+            const float phase = 25f;
+            SetClock(1f);
+            yield return PerfPhase(c, "1 空场（模组已加载，没人开枪）", phase, null);
+
+            // the shooters together in an open area, everybody else standing still, nobody can be hurt
+            bool ok = false; Locked(() => ok = MoveAway(shooters[0], 30, c));
+            if (!ok) { c.passed = false; c.summary = "no open area"; yield break; }
+            var spawned = new List<FWMonsterBean>(); Vector3 centre = Vector3.zero;
+            Locked(() =>
+            {
+                var h0 = shooters[0]; int k = 0;
+                for (int i = 1; i < shooters.Count; i++)
+                    for (; k < 64; k++)
+                    {
+                        short x = (short)(h0.cellX + (k % 8) - 3), y = (short)(h0.cellY + (k / 8) - 3);
+                        if (x == h0.cellX && y == h0.cellY) continue;
+                        if (!MapTools.isCellInRealMapRect(x, y) || !PassableHandler.isPersonPassable(x, y, shooters[i])) continue;
+                        Place(shooters[i], x, y); k++; break;
+                    }
+                lock (TestFreezePatch.Frozen)
+                {
+                    TestFreezePatch.Frozen.Clear();
+                    foreach (var o in MapManager.getInstance().heroManager.getAllianceFaction(1).getRoles())
+                    {
+                        if (o?.roleBean == null) continue;
+                        if (!wasInvincible.ContainsKey(o.getUID())) wasInvincible[o.getUID()] = o.roleBean.isInvincible;
+                        o.roleBean.isInvincible = true;
+                        if (!shooters.Contains(o)) TestFreezePatch.Frozen.Add(o.getUID());
+                    }
+                }
+                for (int i = 0; i < shooters.Count; i++) { try { shooters[i].heroBean.addHp(100000); } catch { } Arm(shooters[i], CsData.Guns.First(g => g.Key == PerfGuns[i]).Row(0), c); Refresh(shooters[i], c); Draft(shooters[i]); }
+                centre = h0.transform.localPosition;
+                for (int a = 0; a < 360 && spawned.Count < 24; a += 15)
+                {
+                    double ang = a * Math.PI / 180;
+                    short mx = (short)(h0.cellX + (int)Math.Round(8 * Math.Cos(ang))), my = (short)(h0.cellY + (int)Math.Round(8 * Math.Sin(ang)));
+                    if (!MapTools.isCellInRealMapRect(mx, my) || !PassableHandler.isPersonPassable(mx, my, h0)) continue;
+                    var m = GMCommand.getInstance().Monster_AddMoster(monsterId, 2, mx, my);
+                    if (m != null) { m.setHp(1000000); spawned.Add(m); }
+                }
+            });
+            c.details.Add("shooters " + shooters.Count + " (" + string.Join(", ", PerfGuns.Take(shooters.Count)) + "), monsters " + spawned.Count);
+            AimAt(centre, BaseScale() * 0.6f, null);
+            int hits0 = CsStats.Hits.Values.Sum();
+            yield return PerfPhase(c, "2 CS 枪交战 1 倍速", phase, spawned, shooters);
+            SetClock(3f);
+            yield return PerfPhase(c, "3 CS 枪交战 3 倍速", phase, spawned, shooters);
+            int csHits = CsStats.Hits.Values.Sum() - hits0;
+            yield return Shot("perf-cs");
+            // control: the same people, each with the game's own gun the CS one was copied from (no CS effect, tracer or
+            // sound; our hooks still run and leave at once)
+            Locked(() => { for (int i = 0; i < shooters.Count; i++) { var g = CsData.Guns.First(x => x.Key == PerfGuns[i]); Arm(shooters[i], g.Template + "0", c); Refresh(shooters[i], c); Draft(shooters[i]); } });
+            int hitsCtl0 = CsStats.Hits.Values.Sum();
+            yield return PerfPhase(c, "4 对照：原版同款枪交战 3 倍速", phase, spawned, shooters);
+            SetClock(0f);
+            c.details.Add("CS hits in phases 2-3: " + csHits + ", CS hits in the control phase (should be 0): " + (CsStats.Hits.Values.Sum() - hitsCtl0));
+            Locked(() =>
+            {
+                foreach (var r in MapManager.getInstance().monsterManager.getMonsters().ToList()) if (spawned.Contains(r.monsterBean)) try { GMCommand.getInstance().Monster_RemoveMoster(r); } catch { }
+                foreach (var h in shooters) try { h.backBaseAI(); } catch { }
+            });
+            lock (TestFreezePatch.Frozen) TestFreezePatch.Frozen.Clear();
+            Locked(() => { foreach (var o in MapManager.getInstance().heroManager.getAllianceFaction(1).getRoles()) if (o?.roleBean != null && wasInvincible.TryGetValue(o.getUID(), out bool was)) o.roleBean.isInvincible = was; wasInvincible.Clear(); });
+            CsPerf.Window = 30f; CsPerf.EchoToGameLog = false;
+            c.passed = csHits > 0;
+            c.summary = shooters.Count + " shooters, " + spawned.Count + " monsters, " + csHits + " CS hits; one CsArsenal-perf line per phase in details, Player.log and " + CsPerf.FilePath;
+        }
+
+        IEnumerator PerfPhase(Check c, string label, float seconds, List<FWMonsterBean> hold, List<BaseHero> draft = null)
+        {
+            CsPerf.Flush();   // closes whatever ran before; the phase starts clean
+            float t0 = Time.realtimeSinceStartup, nextHold = 0f, nextDraft = t0 + 10f; int gc = GC.CollectionCount(0);
+            var dts = new List<float>();
+            while (Time.realtimeSinceStartup - t0 < seconds)
+            {
+                yield return null;
+                dts.Add(Time.unscaledDeltaTime * 1000f);
+                if (hold != null && Time.realtimeSinceStartup > nextHold)
+                {
+                    nextHold = Time.realtimeSinceStartup + 0.5f;   // the monsters stand (a steady load)
+                    Locked(() => { foreach (var r in MapManager.getInstance().monsterManager.getMonsters()) if (hold.Contains(r.monsterBean)) { r.mod_Move?.stopMove(); if (r.monsterBean.getHp() < 500000) r.monsterBean.setHp(1000000); } });
+                }
+                if (draft != null && Time.realtimeSinceStartup > nextDraft)
+                {
+                    nextDraft = Time.realtimeSinceStartup + 10f;   // the manual fight mode lapses after 30 s
+                    Locked(() => { foreach (var h in draft) try { Draft(h); } catch { } });
+                }
+            }
+            CsPerf.Write("---- 阶段 " + label + " ----");
+            CsPerf.Flush();
+            dts.Sort();
+            float p50 = dts.Count > 0 ? dts[dts.Count / 2] : 0, p99 = dts.Count > 0 ? dts[Math.Min(dts.Count - 1, dts.Count * 99 / 100)] : 0;
+            c.details.Add("阶段 " + label + ": 帧 " + dts.Count + "，中位 " + p50.ToString("0.0") + "ms，99% " + p99.ToString("0.0") + "ms，最慢 " + (dts.Count > 0 ? dts[dts.Count - 1] : 0).ToString("0")
+                + "ms，回收 " + (GC.CollectionCount(0) - gc) + " 次 || " + CsPerf.LastLine);
         }
 
         // ---- helpers ----

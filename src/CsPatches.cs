@@ -51,7 +51,9 @@ namespace CsArsenal
         // dead, fallen, or out of health (some deaths are settled on the next logic update)
         static bool Down(BaseRole r) => r.roleBean == null || r.roleBean.isDead() || r.roleBean.isFallDown() || r.roleBean.getHp() <= 0;
 
-        static void Prefix(BaseRole __instance, ref HurtStruct hurtStruct, out bool __state)
+        static void Prefix(BaseRole __instance, ref HurtStruct hurtStruct, out bool __state) { var pm = CsPerf.Start(); try { PrefixBody(__instance, ref hurtStruct, out __state); } finally { CsPerf.End(CsPerf.H.Hit, pm); } }
+        // timed for the perf log (CsPerf); the work is in PrefixBody
+        static void PrefixBody(BaseRole __instance, ref HurtStruct hurtStruct, out bool __state)
         {
             __state = false;
             try
@@ -92,7 +94,9 @@ namespace CsArsenal
             catch (Exception e) { Debug.LogWarning("[CsArsenal] beHit: " + e.Message); }
         }
 
-        static void Postfix(BaseRole __instance, HurtStruct hurtStruct, bool __state)
+        static void Postfix(BaseRole __instance, HurtStruct hurtStruct, bool __state) { var pm = CsPerf.Start(); try { PostfixBody(__instance, hurtStruct, __state); } finally { CsPerf.End(CsPerf.H.Hit, pm); } }
+        // timed for the perf log (CsPerf); the work is in PostfixBody
+        static void PostfixBody(BaseRole __instance, HurtStruct hurtStruct, bool __state)
         {
             if (!__state) return;
             try
@@ -148,7 +152,9 @@ namespace CsArsenal
     [HarmonyPatch(typeof(BaseHero), nameof(BaseHero.doFight_Shoot))]
     static class ShootPatch
     {
-        static bool Prefix(BaseHero __instance, ref SpriteObject target, int shootIndex)
+        static bool Prefix(BaseHero __instance, ref SpriteObject target, int shootIndex) { var pm = CsPerf.Start(); try { return PrefixBody(__instance, ref target, shootIndex); } finally { CsPerf.End(CsPerf.H.Shoot, pm); } }
+        // timed for the perf log (CsPerf); the work is in PrefixBody
+        static bool PrefixBody(BaseHero __instance, ref SpriteObject target, int shootIndex)
         {
             try
             {
@@ -204,7 +210,9 @@ namespace CsArsenal
     static class TestFreezePatch
     {
         public static readonly System.Collections.Generic.HashSet<long> Frozen = new System.Collections.Generic.HashSet<long>();
-        static bool Prefix(BaseRole __instance)
+        static bool Prefix(BaseRole __instance) { var pm = CsPerf.Start(); try { return PrefixBody(__instance); } finally { CsPerf.End(CsPerf.H.Live, pm); } }
+        // timed for the perf log (CsPerf); the work is in PrefixBody
+        static bool PrefixBody(BaseRole __instance)
         {
             if (Frozen.Count == 0) return true;
             lock (Frozen) return !Frozen.Contains(__instance.getUID());
@@ -224,7 +232,9 @@ namespace CsArsenal
         static System.Reflection.FieldInfo cache;
         public static int Cleared;
 
-        static void Prefix(string useTex, ModSpineWeapon weaponConfig)
+        static void Prefix(string useTex, ModSpineWeapon weaponConfig) { var pm = CsPerf.Start(); try { PrefixBody(useTex, weaponConfig); } finally { CsPerf.End(CsPerf.H.Attach, pm); } }
+        // timed for the perf log (CsPerf); the work is in PrefixBody
+        static void PrefixBody(string useTex, ModSpineWeapon weaponConfig)
         {
             try
             {

@@ -22,6 +22,13 @@ namespace CsArsenal
 
         void Update()
         {
+            var pm = CsPerf.Start();
+            try { Work(); } finally { CsPerf.End(CsPerf.H.Update, pm); }
+            try { CsPerf.EndFrame(); } catch (Exception e) { Debug.LogWarning("[CsArsenal] perf: " + e.Message); }
+        }
+
+        void Work()
+        {
             // CS2 sounds load once the mod's folder is known (CsDefLoader runs while the game reads its tables)
             if (!soundsLoaded && CsDefLoader.ResourcesDir != null)
             {

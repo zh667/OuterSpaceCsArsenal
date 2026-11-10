@@ -109,6 +109,6 @@ namespace CsArsenal
     [HarmonyPatch(typeof(UISpriteCatPlayer), "OnPopulateMesh")]
     static class TechIconMeshPatch
     {
-        static void Postfix(UISpriteCatPlayer __instance, VertexHelper vh) => CsTechIcons.Mesh(__instance, vh);
+        static void Postfix(UISpriteCatPlayer __instance, VertexHelper vh) { var pm = CsPerf.Start(); try { CsTechIcons.Mesh(__instance, vh); } finally { CsPerf.End(CsPerf.H.Mesh, pm); } }
     }
 }
