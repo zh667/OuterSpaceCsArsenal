@@ -9,7 +9,7 @@ It differs from the installed game in three places only:
     LocalLow/CatStudio/OS ModTests instead of the player's folder;
   - steam_appid.txt next to the exe, so Steam does not restart the original game.
 The player's folder is only read: the newest save starting with --save (written at least a minute ago) is copied.
-The test copy carries the player's other installed mods and enables the ones they enabled, plus this mod. The copy starts minimised, with UNITY_MIXED_CALLSTACK=1 so a
+The test copy carries the player's other installed mods and enables the ones they enabled, plus this mod. The copy starts minimised and is kept off-screen (keep_offscreen), with UNITY_MIXED_CALLSTACK=1 so a
 freeze dump can name managed frames. A heartbeat that stops for a minute counts as a freeze: the game is dumped
 (tools/freeze_dump.py), its threads listed with names, and it is ended.
 """
@@ -149,6 +149,65 @@ def install_mod(no_build):
     print("mods in the test copy:", sorted(p.name for p in mods.iterdir()))
 
 
+
+
+def force_windowed_offscreen():
+    """The test copy's own Unity screen settings (HKCU\\Software\\CatStudio\\OS ModTests; the player's game keeps its own key):
+    windowed (Fullscreen mode 3), 1600x900, window placed right of every monitor. With fullscreen mode 1 (borderless
+    full screen) Unity ignored -screen-fullscreen 0 and covered the player's screen (11-10)."""
+    import ctypes, winreg
+    u = ctypes.windll.user32
+    left = u.GetSystemMetrics(76) + u.GetSystemMetrics(78) + 200
+    k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Software\\CatStudio\\" + TEST_NAME.decode())
+    for name, v in (("Screenmanager Fullscreen mode_h3630240806", 3), ("Screenmanager Resolution Width_h182942802", 1600),
+                    ("Screenmanager Resolution Height_h2627697771", 900), ("Screenmanager Resolution Window Width_h2524650974", 1600),
+                    ("Screenmanager Resolution Window Height_h1684712807", 900), ("Screenmanager Resolution Use Native_h1405027254", 0),
+                    ("Screenmanager Window Position X_h4088080503", left), ("Screenmanager Window Position Y_h4088080502", 0)):
+        winreg.SetValueEx(k, name, 0, winreg.REG_DWORD, v)
+    winreg.CloseKey(k)
+
+    # the game's own setting wins over Unity's (UserSaver.readInfo -> SettingView_Graphics.setScreenResolution): the
+    # test copy's userInfo (big-endian Java stream) gets FullScreen = false. Byte offset: 4 bools, 4 floats, 5 bools,
+    # a long, then an int count n and n bools, then int, bool, 4 ints -> FullScreen at 58 + n.
+    for info in TEST_DATA.rglob("userInfo"):
+        b = bytearray(info.read_bytes())
+        if len(b) > 40:
+            n = int.from_bytes(b[33:37], "big"); i = 58 + n
+            if 0 <= n < 64 and i < len(b) and b[i] in (0, 1):
+                if b[i] == 1: b[i] = 0; info.write_bytes(bytes(b)); print("test copy settings: windowed", info)
+            else: print("userInfo layout not recognised, left alone:", info)
+
+def keep_offscreen(pid, stop):
+    """The test game's window, kept outside every monitor, at the bottom of the window stack and never activated:
+    Unity ignores the minimised start and opens a 1600x900 window over the player's screen (user 11-10). Hidden or
+    minimised windows stop rendering (black screenshots), an off-screen one keeps rendering."""
+    import ctypes, threading
+    from ctypes import wintypes
+    u = ctypes.windll.user32
+    left = u.GetSystemMetrics(76) + u.GetSystemMetrics(78) + 200   # virtual screen right edge + margin
+    HWND_BOTTOM, SWP = 1, 0x0001 | 0x0010 | 0x0200                   # NOSIZE | NOACTIVATE | NOOWNERZORDER
+    Enum = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def windows():
+        found = []
+        def cb(h, _):
+            p = wintypes.DWORD(); u.GetWindowThreadProcessId(h, ctypes.byref(p))
+            if p.value == pid and u.IsWindowVisible(h): found.append(h)
+            return True
+        u.EnumWindows(Enum(cb), 0); return found
+    prev = u.GetForegroundWindow()   # the player's window when the test started
+    def loop():
+        t0 = time.time()
+        while not stop.is_set():
+            for h in windows():
+                if u.IsIconic(h): continue   # minimised (the usual case now): nothing to move
+                r = wintypes.RECT(); u.GetWindowRect(h, ctypes.byref(r))
+                if r.left < left - 10: u.SetWindowPos(h, HWND_BOTTOM, left, 0, 0, 0, SWP)
+            fg = u.GetForegroundWindow()
+            if prev and fg != prev and fg in windows() and u.IsWindow(prev):   # give the focus back to the player
+                u.SetForegroundWindow(prev)
+            stop.wait(0.05 if time.time() - t0 < 30 else 1.0)
+    threading.Thread(target=loop, daemon=True).start()
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--save", default="zh6657", help="prefix of the player's saves; the newest one is used")
@@ -177,6 +236,7 @@ def main():
     for old in RUNTIME.glob("ModSelfTest*.json"):   # older kits start their self-test on ModSelfTest.json
         old.unlink()
     (RUNTIME / ("ModSelfTest." + MOD["packageId"] + ".json")).write_text(json.dumps({"save": save, "tests": a.tests}), encoding="utf-8")
+    force_windowed_offscreen()
     si = subprocess.STARTUPINFO()
     si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     si.wShowWindow = 7   # minimised, not activated: the player's window keeps the focus
@@ -184,6 +244,8 @@ def main():
     proc = subprocess.Popen([str(RUNTIME / "Outer Space.exe"), "-screen-fullscreen", "0", "-screen-width", "1600", "-screen-height", "900",
                              "-logFile", str(log)], cwd=RUNTIME, startupinfo=si, env=env)
     print("started pid", proc.pid, "tests", a.tests)
+    import threading
+    stop_offscreen = threading.Event(); keep_offscreen(proc.pid, stop_offscreen)
     t0, frozen = time.time(), None
     while time.time() - t0 < a.limit and not res.exists() and proc.poll() is None:
         time.sleep(3)
@@ -197,6 +259,7 @@ def main():
     time.sleep(5)
     if proc.poll() is None:
         proc.kill()
+    stop_offscreen.set()
     print("elapsed", round(time.time() - t0), "exit", proc.poll())
 
     tag = "[" + MOD["name"] + "]"

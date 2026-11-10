@@ -10,6 +10,8 @@ keep_side = a[4] if len(a) > 4 else ""
 # options (comma list): islands = drop small loose parts lying apart from the gun (a spare shell, a loose cylinder);
 # flipF / flipU = the automatic muzzle or up direction came out wrong for this model
 opts = set((a[5] if len(a) > 5 else "").split(","))
+# griponly: keep the existing pictures, only add each view's grip pixel to info.json (same framing, checked)
+griponly = "griponly" in opts
 os.makedirs(out, exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 sc = bpy.context.scene
@@ -100,6 +102,14 @@ U = Vector((0, 0, 0)); U[Uax] = 1 if (c - mn[Uax]) > (mx[Uax] - c) else -1   # m
 if "flipF" in opts: F = -F
 if "flipU" in opts: U = -U
 center = (mn + mx) / 2
+# the model's right-hand bone (ag1_hand_r, where CS2 puts the hand on the grip), in world space
+grip_w = trig_w = None   # trigger: in front of the hand on an upright, muzzle-right gun (orientation check)
+for o in bpy.data.objects:
+    if o.type == "ARMATURE":
+        pb = next((b for b in o.pose.bones if b.name.lower() in ("ag1_hand_r", "weapon_hand_r", "hand_r")), None)
+        if pb is not None: grip_w = o.matrix_world @ pb.head
+        tb = o.pose.bones.get("trigger")
+        if tb is not None: trig_w = o.matrix_world @ tb.head
 cam = bpy.data.cameras.new("c"); cam.type = "ORTHO"; cam.clip_start = 0.001; cam.clip_end = 1000
 co = bpy.data.objects.new("c", cam); sc.collection.objects.link(co); sc.camera = co
 def sun(e, rx, ry):
@@ -134,6 +144,18 @@ for name in ("s", "b", "f"):
     cam.ortho_scale = long
     sc.render.resolution_x = max(8, round(pxl * wx * m / long)); sc.render.resolution_y = max(8, round(pxl * wy * m / long))
     co.matrix_world = Matrix.Translation(center + X * cx + Y * cy + Z * 5 * max(size)) @ R.to_4x4()
-    sc.render.filepath = os.path.join(out, name + ".png"); bpy.ops.render.render(write_still=True)
-    info["views"][name] = {"w_m": wx, "h_m": wy, "px": [sc.render.resolution_x, sc.render.resolution_y], "m_per_px": long / pxl}
+    sc.render.filepath = os.path.join(out, name + ".png")
+    if not griponly: bpy.ops.render.render(write_still=True)
+    rx, ry = sc.render.resolution_x, sc.render.resolution_y
+    info["views"][name] = {"w_m": wx, "h_m": wy, "px": [rx, ry], "m_per_px": long / pxl}
+    if grip_w is not None:   # pixel of the hand bone in this picture (x right, y down)
+        info["views"][name]["grip_px"] = [rx / 2 + ((grip_w - center).dot(X) - cx) * pxl / long, ry / 2 - ((grip_w - center).dot(Y) - cy) * pxl / long]
+    if trig_w is not None:
+        info["views"][name]["trigger_px"] = [rx / 2 + ((trig_w - center).dot(X) - cx) * pxl / long, ry / 2 - ((trig_w - center).dot(Y) - cy) * pxl / long]
+if griponly:
+    old = json.load(open(os.path.join(out, "info.json")))
+    for v, d in info["views"].items():
+        same = old["views"][v]["px"] == d["px"]
+        old["views"][v]["grip_px"] = d.get("grip_px"); old["views"][v]["trigger_px"] = d.get("trigger_px"); old["views"][v]["grip_framing_same"] = same
+    info = old
 json.dump(info, open(os.path.join(out, "info.json"), "w"), indent=1); print("DONE", json.dumps(info))

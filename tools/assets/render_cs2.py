@@ -4,7 +4,7 @@ M=r"E:\projects\CSMCReverse\local_cs2_analysis\all_weapons\02_models\glb_with_an
 def run(args,cwd=AS,to=900): return subprocess.run(args,capture_output=True,text=True,encoding='utf-8',errors='replace',cwd=cwd,creationflags=0x08000000,timeout=to)
 tilt=40   # matches round 0 (calibrated against the Glock render, 11-09)
 # 2. the CS-2 guns
-OPTS={"mp9":"islands,flipF","ump45":"islands,flipF","bizon":"islands,flipF","revolver":"islands,pose","p90":"islands,flipU"}   # p90: its magazine ended up underneath   # R8 rest pose has the grip bent up   # checked by eye on cs2_render_s.jpg
+OPTS={"mp9":"islands,flipF","ump45":"islands,flipF","bizon":"islands,flipF,flipU","revolver":"islands,pose","p90":"islands,flipU"}   # p90: its magazine ended up underneath   # R8 rest pose has the grip bent up   # checked by eye on cs2_render_s.jpg
 import sys as _s
 KEYS3=["p90","galilar","famas","ak47","m4a4","m4a1_silencer","ssg08","sg556","aug"]
 KEYS4=["p90","awp","g3sg1","scar20","m249","negev"]   # p90 re-rendered upside up (user 11-10)

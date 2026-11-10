@@ -4,7 +4,7 @@
 # Each sprite is put on the canvas of the game's template attachment the mod copies (gun/870*, handgun/jg2*), so
 # whatever size Spine keeps from the template, the gun sits where the game's own guns sit.
 #   python make_sprites.py <round dir>
-import os, sys, json, base64, io
+import os, sys, json, base64, io, math
 import numpy as np
 from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -47,6 +47,59 @@ def unpremul_down(img, W, H):
 
 def trim(im):
     bb = im.getchannel("A").getbbox(); return im.crop(bb) if bb else im
+
+# Where the hand is in the template attachment's frame (the frame the mod's picture replaces), per view. Worked out in the
+# game (Kit/DebugChannel, snip attach_dump.cs, 11-10): the game's own P250 / AK-47 attachments put their grips under the
+# hand, so hand (bone space) = vanilla attachment transform (vanilla grip pixel), mapped back through the template's
+# transform (handgun/jg2*, gun/870*). The normal and the shot slots agree within ~6 px; the shot slot (aiming) leans
+# forward, so the values sit between them. Back/front grips are estimated from the side-view proportion.
+HAND = {
+    "gun":     {"s": (38.5, 32.0), "b": (11.2, 43.2), "f": (9.2, 12.3)},
+    "handGun": {"s": (11.5, 29.0), "b": (9.8, 33.2), "f": (9.0, 9.0)},
+}
+
+def on_canvas_hand(im, grip, kind, view):
+    """the picture placed so its grip (the CS2 model's hand bone) is where the hand is; the canvas grows evenly around
+    the template frame's centre when the gun sticks out (the attachment stays centred where the template's was)"""
+    cw, ch = KIND[kind]["canvas"][view]; ax, ay = HAND[kind][view]
+    x0, y0 = round(ax - grip[0]), round(ay - grip[1])
+    half_w = math.ceil(max(cw / 2, cw / 2 - min(0, x0), x0 + im.width - cw / 2))
+    half_h = math.ceil(max(ch / 2, ch / 2 - min(0, y0), y0 + im.height - ch / 2))
+    W, H = 2 * half_w, 2 * half_h; ox, oy = round(half_w - cw / 2), round(half_h - ch / 2)
+    c = Image.new("RGBA", (W, H), (0, 0, 0, 0)); c.paste(im, (x0 + ox, y0 + oy), im)
+    return c
+
+# long guns: how to fit the hand. "old" = the placement before 11-10 (stock starts where the game's stocks start; the
+# hand may sit on the receiver); "short_stock" = grip under the hand with the part behind the grip squeezed to the
+# game's own rifle proportion (its stock reaches only ~12 px behind the hand), so it does not cover the body.
+# User 11-10 chose "old" for every gun (pistols too). Set by make_sprites.py --long <mode>.
+LONG_MODE = "old"
+REAR_MAX = {"s": 13, "b": 10, "f": 10}
+
+def squeeze_rear(im, g, view):
+    """the part of the gun behind the grip squeezed to REAR_MAX px along the gun's length (side: left of the grip,
+    back view: below it, front view: above it); returns the new picture and grip"""
+    gx, gy = g; lim = REAR_MAX[view]
+    if view == "s":
+        cut = int(round(gx)) - 2
+        if cut <= lim: return im, g
+        rear = im.crop((0, 0, cut, im.height)).resize((lim, im.height), Image.LANCZOS)
+        out = Image.new("RGBA", (im.width - cut + lim, im.height), (0, 0, 0, 0))
+        out.paste(rear, (0, 0)); out.paste(im.crop((cut, 0, im.width, im.height)), (lim, 0))
+        return out, (gx - cut + lim, gy)
+    if view == "b":   # muzzle up: the stock is below the grip
+        cut = int(round(gy)) + 2; n = im.height - cut
+        if n <= lim: return im, g
+        rear = im.crop((0, cut, im.width, im.height)).resize((im.width, lim), Image.LANCZOS)
+        out = Image.new("RGBA", (im.width, cut + lim), (0, 0, 0, 0))
+        out.paste(im.crop((0, 0, im.width, cut)), (0, 0)); out.paste(rear, (0, cut))
+        return out, g
+    cut = int(round(gy)) - 2   # front view, muzzle down: the stock is above the grip
+    if cut <= lim: return im, g
+    rear = im.crop((0, 0, im.width, cut)).resize((im.width, lim), Image.LANCZOS)
+    out = Image.new("RGBA", (im.width, im.height - cut + lim), (0, 0, 0, 0))
+    out.paste(rear, (0, 0)); out.paste(im.crop((0, cut, im.width, im.height)), (0, lim))
+    return out, (gx, gy - cut + lim)
 
 def on_canvas(im, kind, view):
     cw, ch = KIND[kind]["canvas"][view]
@@ -110,6 +163,19 @@ def style_V(name):
         return _outline(trim(im), (0, 0, 0) if "tone" in v else (10, 8, 8), 1)
     return f
 
+def style_V_grip(name, src, kind, view, grip):
+    """style_V, also returning where the source picture's grip pixel ends up in the sprite"""
+    v = VARIANTS[name]; w, x = v[kind][view]
+    if view == "s":
+        W = w - 2; H = max(1, round(src.height * W / src.width * x)); H = min(H, KIND[kind]["canvas"]["s"][1] - 2)
+    else:
+        W, H = w - 2, x - 2
+    im = pop(unpremul_down(src, W, H), v["pop"])
+    if "tone" in v: im = tone(im, *v["tone"])
+    bb = im.getchannel("A").getbbox() or (0, 0, W, H)
+    g = (grip[0] * W / src.width - bb[0], grip[1] * H / src.height - bb[1])
+    return _outline(im.crop(bb), (0, 0, 0) if "tone" in v else (10, 8, 8), 1), g
+
 def style_B(src, kind, view):
     W, H = KIND[kind]["B"][view]
     return trim(stylize_sprite(src, W / src.width, H / src.height, colors=16, lo=0.05, hi=0.93, gamma=1.3, sat=1.15,
@@ -122,6 +188,8 @@ def b64(im):
     buf = io.BytesIO(); im.save(buf, "PNG"); return base64.b64encode(buf.getvalue()).decode()
 
 def main():
+    global LONG_MODE
+    if "--long" in sys.argv: LONG_MODE = sys.argv[sys.argv.index("--long") + 1]
     out = os.path.join(RD, "sprites"); rows = []; report = {}
     rows.append(("h", "游戏原版参照（游戏自带的枪，不是我们做的）"))
     for kind in ("handGun", "gun"):
@@ -142,11 +210,23 @@ def main():
         if True:   # A4 is the chosen style (11-09); A2/A3 kept for comparisons
             for st in ("A2", "A3", "A4"):
                 vs = []
+                info = json.load(open(os.path.join(RD, "render", gun, "info.json")))
                 for v in "sbf":
                     src = Image.open(os.path.join(RD, "render", gun, v + ".png")).convert("RGBA")
-                    sp = style_V(st)(src, kind, v)
                     os.makedirs(os.path.join(out, st), exist_ok=True)
-                    on_canvas(sp, kind, v).save(os.path.join(out, st, f"{gun}_{v}.png"))
+                    grip = info["views"][v].get("grip_px")
+                    sp, g = style_V_grip(st, src, kind, v, grip) if grip and st == "A4" else (None, None)
+                    # the chosen style: grip under the hand (user 11-10: MP9 not held). A grip outside the picture (the
+                    # Dual Berettas keep one pistol; the hand bone belongs to the other) falls back to the old placement.
+                    ok = sp is not None and -2 <= g[0] <= sp.width + 2 and -2 <= g[1] <= sp.height + 2
+                    if ok and LONG_MODE == "old": ok = False   # user 11-10: the old placement for every gun
+                    if ok and kind == "gun" and LONG_MODE == "short_stock": sp, g = squeeze_rear(sp, g, v)
+                    if ok:
+                        cv = on_canvas_hand(sp, g, kind, v)
+                        report[f"grip/{gun}_{v}"] = [round(g[0], 1), round(g[1], 1), cv.width, cv.height]
+                    else:
+                        sp = style_V(st)(src, kind, v); cv = on_canvas(sp, kind, v)
+                    cv.save(os.path.join(out, st, f"{gun}_{v}.png"))
                     report[f"{st}/{gun}_{v}"] = list(sp.size); vs.append(sp)
                 rows.append(("r", CN[gun] + " " + st, vs))
     html = ['<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>画风对比</title><style>',
