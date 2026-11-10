@@ -1,7 +1,10 @@
 # Runs ON WINDOWS. CS2 pictures for the game's icons (user 11-10: "改成那种 CS2 的"):
 #   res/Resources/Textures/icons/<gun>.png   item icons: the CS2 inventory picture of each gun (panorama econ
-#                                            base_weapons/weapon_<name>_png), ITEM_STYLE "diag" = turned 35 degrees so
-#                                            long guns use the square slot, "flat" = as CS2 shows it
+#                                            base_weapons/weapon_<name>_png), ITEM_STYLE "diag" = the game's own angle
+#                                            (its gun icons in T_Materials are drawn mirrored and turned 45 degrees:
+#                                            muzzle up-left, top side up-right; measured from the icon quad 11-10), so a
+#                                            CS2 picture, muzzle already left, is turned 45 degrees clockwise; "flat" =
+#                                            as CS2 shows it
 #   res/Resources/Textures/tech/<tech>.png   tech node icons: the CS2 HUD silhouette (panorama/images/icons/equipment
 #                                            <name>.vsvg_c, an SVG inside) of one gun per tier, white on opaque black
 #                                            like the game's Icon_Technology atlas (src/CsTechIcons.cs)
@@ -36,11 +39,32 @@ def _fit(im, w, h, rot=0):
     return c
 
 
+def _tilt(im):
+    """Angle of the gun's top edge in degrees (y up; negative = rising to the left, where CS2 puts the muzzle). CS2's
+    inventory pictures are three-quarter renders with the muzzle raised a little (rifles about 8-13 degrees, scoped
+    snipers about 0); the game's own icons are level pixel art, so the tilt comes off before the 45-degree turn."""
+    import numpy as np, math
+    a = np.asarray(im.getchannel("A")) > 40
+    cols = np.where(a.any(axis=0))[0]; c0, c1 = cols.min(), cols.max()
+    sel = [c for c in range(c0, c1 + 1) if c0 + 0.2 * (c1 - c0) < c < c0 + 0.8 * (c1 - c0)]
+    slope = np.polyfit(sel, [-int(np.argmax(a[:, c])) for c in sel], 1)[0]
+    return max(-15.0, min(3.0, math.degrees(math.atan(slope))))
+
+
+def _outline(im, px=2, colour=(18, 18, 20, 255)):
+    """A dark rim like the game's own item icons have, so the guns read on the dark slots."""
+    from PIL import ImageFilter
+    m = im.getchannel("A").point(lambda a: 255 if a > 60 else 0).filter(ImageFilter.MaxFilter(2 * px + 1))
+    out = Image.new("RGBA", im.size, (0, 0, 0, 0)); out.paste(Image.new("RGBA", im.size, colour), (0, 0), m)
+    out.alpha_composite(im); return out
+
+
 def item_icon(gun, style=None):
     style = style or ITEM_STYLE
     src = ECON / f"weapon_{NAME.get(gun, gun)}_png.png"
     im = Image.open(src).convert("RGBA")
-    return _fit(im, ICON - 2, ICON - 2, rot=35 if style == "diag" else 0).crop((-1, -1, ICON - 1, ICON - 1))
+    rot = (-45 - _tilt(im)) if style == "diag" else 0   # top edge to exactly 45 degrees, muzzle up-left
+    return _outline(_fit(im, ICON - 6, ICON - 6, rot=rot).crop((-3, -3, ICON - 3, ICON - 3)))
 
 
 def _svg(name):
