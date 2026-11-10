@@ -1,0 +1,11 @@
+{
+  "comment": "Steam Workshop page of the mod (tools/workshop.py). The published id is kept in published_id.txt next to this file. Steam keeps title and description per language: the same text is written for every language listed (english is what the web and clients in other languages show). requires: Workshop items subscribers need too (Harmony).",
+  "appId": 3080070,
+  "title": "CS2 军械",
+  "languages": ["schinese", "english"],
+  "tags": ["Mod"],
+  "requires": ["3803065949"],
+  "content": "dist/CsArsenal",
+  "preview": "Manifest/preview.png",
+  "descriptionFile": "tools/workshop/description.txt"
+}
