@@ -8,6 +8,9 @@
 #   res/Resources/Textures/tech/<tech>.png   tech node icons: the CS2 HUD silhouette (panorama/images/icons/equipment
 #                                            <name>.vsvg_c, an SVG inside) of one gun per tier, white on opaque black
 #                                            like the game's Icon_Technology atlas (src/CsTechIcons.cs)
+#   Manifest/icon.png, Manifest/preview.png  the mod's picture in the game's mod menu (manifest <icon>, <previewImage>;
+#                                            ModDialogItem / ModDialogInfo load them from the Manifest folder): a CS2 HUD
+#                                            AK-47 on CS orange, and a banner of CS2 inventory pictures (user 11-10)
 #   python tools/assets/make_icons.py [--style diag|flat]
 # make_agent_assets.py calls item_icon() and write_tech() when it rebuilds the resources.
 import io, os, subprocess, sys
@@ -25,7 +28,8 @@ ICON = 64
 NAME = {"glock18": "glock", "m4a4": "m4a1"}   # our key -> CS2 file name where they differ
 TECH = {"cs-1": "usp_silencer", "cs-2": "mp9", "cs-3": "ak47", "cs-4": "awp"}
 TECH_SIZE, TECH_FILL = 128, 0.92
-ARMOUR = {"kevlar": "kevlar", "helmet": "helmet"}   # CS2 has no inventory picture for armour, only HUD silhouettes (as in its buy menu)
+ARMOUR = {"kevlar": "kevlar", "helmet": "helmet"}   # CS2 has no inventory picture for armour, only HUD silhouettes (as in its buy menu);
+                                                    # discontinued 11-10, the icons stay for armour already in saves
 
 
 def _fit(im, w, h, rot=0):
@@ -108,6 +112,58 @@ def armour_icon(key):
     return out
 
 
+ORANGE, DARK = (234, 160, 52), (21, 23, 28)
+FONT_LATIN, FONT_CJK = r"C:\Windows\Fonts\impact.ttf", r"C:\Windows\Fonts\msyhbd.ttc"
+
+
+def mod_icon(S=256):
+    """square badge: dark plate, an orange band, the CS2 HUD AK-47 in white across it, "CS2" in the corner"""
+    from PIL import ImageDraw, ImageFilter, ImageFont
+    k = 4; B = S * k   # drawn 4x and scaled down for clean edges
+    im = Image.new("RGBA", (B, B), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+    d.rounded_rectangle((0, 0, B - 1, B - 1), radius=B // 7, fill=DARK + (255,))
+    band = Image.new("L", (B, B), 0); ImageDraw.Draw(band).polygon([(0, B * 0.62), (B * 0.62, 0), (B, 0), (B, B * 0.12), (B * 0.12, B), (0, B)], fill=255)
+    mask = Image.new("L", (B, B), 0); ImageDraw.Draw(mask).rounded_rectangle((0, 0, B - 1, B - 1), radius=B // 7, fill=255)
+    from PIL import ImageChops
+    im.paste(Image.new("RGBA", (B, B), ORANGE + (255,)), (0, 0), ImageChops.multiply(band, mask))
+    gun = _svg_alpha("ak47", 2400).rotate(32, resample=Image.BICUBIC, expand=True); gun = gun.crop(gun.getbbox())
+    w = int(B * 0.86); h = round(gun.height * w / gun.width); gun = gun.resize((w, h), Image.LANCZOS)
+    gx, gy = (B - w) // 2, int(B * 0.47 - h / 2)
+    sh = Image.new("L", (B, B), 0); sh.paste(gun, (gx + B // 64, gy + B // 64)); sh = sh.filter(ImageFilter.GaussianBlur(B // 90))
+    im.paste(Image.new("RGBA", (B, B), (0, 0, 0, 200)), (0, 0), ImageChops.multiply(sh, mask))
+    g = Image.new("L", (B, B), 0); g.paste(gun, (gx, gy))
+    im.paste(Image.new("RGBA", (B, B), (245, 245, 245, 255)), (0, 0), g)
+    f = ImageFont.truetype(FONT_LATIN, int(B * 0.27))
+    t = "CS2"; tb = d.textbbox((0, 0), t, font=f)
+    d.text((B - (tb[2] - tb[0]) - B * 0.09 - tb[0], B - (tb[3] - tb[1]) - B * 0.07 - tb[1]), t, font=f, fill=(245, 245, 245, 255),
+           stroke_width=B // 80, stroke_fill=DARK + (255,))
+    return im.resize((S, S), Image.LANCZOS)
+
+
+def mod_preview(W=960, H=540):
+    """banner: title, a line of what is inside, and five CS2 inventory pictures"""
+    from PIL import ImageDraw, ImageFont
+    im = Image.new("RGBA", (W, H), DARK + (255,)); d = ImageDraw.Draw(im)
+    for y in range(H):   # soft vertical light
+        c = int(14 * (1 - abs(y - H * 0.55) / (H * 0.55))); d.line([(0, y), (W, y)], fill=(DARK[0] + c, DARK[1] + c, DARK[2] + c + 2, 255))
+    d.rectangle((0, 0, W, 10), fill=ORANGE + (255,))
+    ft = ImageFont.truetype(FONT_CJK, 64); fs = ImageFont.truetype(FONT_CJK, 26)
+    d.text((48, 40), "CS2 军械", font=ft, fill=(245, 245, 245, 255))
+    d.text((52, 128), "35 把 CS2 枪械 · CS-1～CS-4 科技 · 原版设备制造", font=fs, fill=ORANGE + (255,))
+    guns = ["awp", "ak47", "m4a1_silencer", "deagle", "p90"]
+    slots = [(40, 190, 560, 330), (470, 200, 920, 330), (40, 340, 470, 470), (500, 350, 690, 480), (700, 340, 920, 480)]
+    for gname, (x0, y0, x1, y1) in zip(guns, slots):
+        p = _fit(Image.open(ECON / f"weapon_{NAME.get(gname, gname)}_png.png").convert("RGBA"), x1 - x0, y1 - y0)
+        im.alpha_composite(p, (x0, y0))
+    return im
+
+
+def write_mod_pictures():
+    m = ROOT / "Manifest"
+    mod_icon().save(m / "icon.png"); mod_preview().convert("RGB").save(m / "preview.png")
+    print("mod menu pictures", m / "icon.png", m / "preview.png")
+
+
 def write_tech():
     d = OUT / "tech"; d.mkdir(parents=True, exist_ok=True)
     for tid, name in TECH.items():
@@ -126,3 +182,4 @@ if __name__ == "__main__":
         armour_icon(k).save(d / f"{k}.png")
     print("armour icons", sorted(ARMOUR))
     write_tech()
+    write_mod_pictures()

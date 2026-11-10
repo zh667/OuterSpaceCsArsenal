@@ -35,7 +35,7 @@ namespace CsArsenal
     public static class CsData
     {
         // made on the game's own benches (user 11-09: no CS bench), the way the game spreads its guns: a tier's recipes on
-        // that tier's gun bench and the next one up; Kevlar on the armour forges, like the guerrilla armour and helmet
+        // that tier's gun bench and the next one up
         public static readonly Dictionary<int, string[]> GunBenches = new Dictionary<int, string[]>
         {
             [1] = new[] { "140", "141" }, [2] = new[] { "141", "142" }, [3] = new[] { "142", "143" }, [4] = new[] { "143" },
@@ -82,9 +82,9 @@ namespace CsArsenal
             new GunSpec { Base = "8833", Key = "deagle", Name = "沙漠之鹰", Tier = 2, Template = "2011", AtkMul = 1.6f, AntiArmor = 0.7f, ReloadMul = 1.1f,
                 Price = 38000, Headshot = 0.40f, KillReward = 1500, RecipeId = "88613", RecipeUnlockId = "88513", Materials = "12_24_36|12_61_15|12_33_3", Workload = 30,
                 Desc = "大口径手枪。【一枪头】爆头率 40%；爆头击杀后立刻可以开下一枪，可以连续一枪头。" },
-            new GunSpec { Base = "8834", Key = "revolver", Name = "R8 左轮", Tier = 2, Template = "2011", AtkMul = 2.0f, MagAdd = -1, AimAdd = 0.4f, KnockDown = 0.8f, AntiArmor = 0.7f,
+            new GunSpec { Base = "8834", Key = "revolver", Name = "R8 左轮", Tier = 2, Template = "2011", AtkMul = 2.0f, MagAdd = -1, AimAdd = 0.4f, AntiArmor = 0.7f,
                 Price = 37000, Headshot = 0.15f, KillReward = 1500, RecipeId = "88614", RecipeUnlockId = "88514", Materials = "12_24_36|12_61_15|12_33_3", Workload = 30,
-                Desc = "重型左轮。【扳机蓄力】每个弹匣开火前多蓄力 0.4 秒，伤害 ×2；被打倒的目标 80% 会被制服（可俘虏）而不是死亡。" },
+                Desc = "重型左轮。【扳机蓄力】每个弹匣开火前多蓄力 0.4 秒，伤害 ×2。【重创】被它打中的目标 4 秒内受到的所有伤害 +20%（谁打都算）。" },
             new GunSpec { Base = "8835", Key = "mac10", Name = "MAC-10", Tier = 2, Template = "1021", Category = "smg", Side = "T", AtkMul = 1.05f, MagAdd = 3, AntiArmor = 0.4f,
                 Price = 38000, Headshot = 0.03f, KillReward = 3000, RecipeId = "88615", RecipeUnlockId = "88515", Materials = "12_24_36|12_61_20|12_33_3",
                 Desc = "T 阵营的冲锋枪，射速快。【冲锋】拿着它移动速度 +15%；击杀后 3 秒内再 +25%。" },
@@ -97,21 +97,21 @@ namespace CsArsenal
             new GunSpec { Base = "8838", Key = "mp5sd", Name = "MP5-SD", Tier = 2, Template = "1021", Category = "smg", AtkMul = 1.1f, MagAdd = 2, AntiArmor = 0.5f,
                 Price = 39000, Headshot = 0.05f, KillReward = 3000, RecipeId = "88618", RecipeUnlockId = "88518", Materials = "12_24_36|12_61_20|12_33_3",
                 Desc = "消音冲锋枪。【消音游击】击杀后 3 秒内移动速度 +30%，并恢复 5% 意识。" },
-            new GunSpec { Base = "8839", Key = "ump45", Name = "UMP-45", Tier = 2, Template = "1021", Category = "smg", AtkMul = 1.35f, MagAdd = 1, AntiArmor = 0.6f, KnockDown = 0.4f,
+            new GunSpec { Base = "8839", Key = "ump45", Name = "UMP-45", Tier = 2, Template = "1021", Category = "smg", AtkMul = 1.35f, MagAdd = 1, AntiArmor = 0.6f,
                 Price = 38500, Headshot = 0.04f, KillReward = 3000, RecipeId = "88619", RecipeUnlockId = "88519", Materials = "12_24_36|12_61_20|12_33_3",
-                Desc = "大口径冲锋枪。【近身重击】5 格以内伤害 +40%；被打倒的目标 40% 会被制服（可俘虏）。" },
+                Desc = "大口径冲锋枪。【近身重击】5 格以内伤害 +40%，并让目标 1 秒内无法开火。" },
             new GunSpec { Base = "8840", Key = "bizon", Name = "PP 野牛", Tier = 2, Template = "1021", Category = "smg", AtkMul = 0.9f, MagAdd = 8, ReloadMul = 0.4f, AntiArmor = 0.4f,
                 Price = 38000, Headshot = 0.03f, KillReward = 3000, RecipeId = "88620", RecipeUnlockId = "88520", Materials = "12_24_36|12_61_20|12_33_3",
                 Desc = "螺旋弹匣冲锋枪，弹匣极大。【螺旋弹匣】换弹只要 1 秒；每次击杀返还 10 发子弹。" },
-            new GunSpec { Base = "8841", Key = "nova", Name = "新星", Tier = 2, Template = "2051", Category = "shotgun", AtkMul = 0.56f, AttackBullet = 9, Drag = 0.8f, Shocktime = 1.5f, KnockDown = 0.6f,
+            new GunSpec { Base = "8841", Key = "nova", Name = "新星", Tier = 2, Template = "2051", Category = "shotgun", AtkMul = 0.56f, AttackBullet = 9, Drag = 0.8f, Shocktime = 1.5f,
                 Price = 42000, Headshot = 0.03f, KillReward = 4500, RecipeId = "88621", RecipeUnlockId = "88521", Materials = "12_24_32|12_61_30|12_33_2",
-                Desc = "泵动霰弹枪。【重锤】命中让目标减速 80%，持续 1.5 秒；被打倒的目标 60% 会被制服（可俘虏）。" },
+                Desc = "泵动霰弹枪。【重锤】命中让目标减速 80%，持续 1.5 秒。【近距破甲】3 格以内无视 40% 护甲。" },
             new GunSpec { Base = "8842", Key = "sawedoff", Name = "截短霰弹枪", Tier = 2, Template = "2051", Category = "shotgun", Side = "T", AtkMul = 1.0f, AttackBullet = 8, RangeAdd = -6, MagAdd = -2,
                 Price = 41000, Headshot = 0.02f, KillReward = 4500, RecipeId = "88622", RecipeUnlockId = "88522", Materials = "12_24_32|12_61_30|12_33_2",
                 Desc = "T 阵营的短管霰弹枪，一次 8 颗弹丸。【近距离撕裂】3 格以内伤害 ×1.5，越远越弱（最远处 ×0.5）。" },
             new GunSpec { Base = "8843", Key = "mag7", Name = "MAG-7", Tier = 2, Template = "2051", Category = "shotgun", Side = "CT", AtkMul = 0.75f, AttackBullet = 8, MagAdd = -2,
                 Price = 43000, Headshot = 0.03f, KillReward = 4500, RecipeId = "88623", RecipeUnlockId = "88523", Materials = "12_24_32|12_61_30|12_33_2",
-                Desc = "CT 阵营的弹匣式霰弹枪。【破门】对建筑和门伤害 ×2。" },
+                Desc = "CT 阵营的弹匣式霰弹枪。【近身护卫】命中敌人后，自己 2 秒内受到的伤害 −25%。" },
             new GunSpec { Base = "8844", Key = "xm1014", Name = "XM1014", Tier = 2, Template = "2051", Category = "shotgun", AtkMul = 0.67f, AttackBullet = 6,
                 Price = 44000, Headshot = 0.03f, KillReward = 4500, RecipeId = "88624", RecipeUnlockId = "88524", Materials = "12_24_32|12_61_30|12_33_2",
                 Desc = "半自动霰弹枪。【连喷】连续命中同一个目标时每颗弹丸伤害 +3%，最多 +60%，换目标清零。" },
@@ -148,7 +148,7 @@ namespace CsArsenal
             // ---- CS-4 精确与压制 (tier 4: snipers from 零号守备 4061, machine guns from 捍卫者机枪 4041) ----
             new GunSpec { Base = "8860", Key = "awp", Name = "AWP", Tier = 4, Template = "4061", Category = "sniper", AtkMul = 2.6f, MagAdd = -8, RoundIntervalMul = 1.5f,
                 Price = 520000, Headshot = 0.30f, KillReward = 500, RecipeId = "88634", RecipeUnlockId = "88534", Materials = "12_20_60|12_39_40|12_42_3", Workload = 50,
-                Desc = "重型狙击枪，伤害极高。【一枪一个】子弹贯穿直线上的所有敌人，每穿过一个伤害 −25%；拿着它移动速度 −15%。" },
+                Desc = "重型狙击枪，伤害极高。【一枪一个】打满血的人形敌人一枪直接打倒；打怪物伤害 ×1.5。拿着它移动速度 −15%。" },
             new GunSpec { Base = "8861", Key = "g3sg1", Name = "G3SG1", Tier = 4, Template = "4061", Category = "sniper", Side = "T", AtkMul = 0.65f, MagAdd = 7, RoundIntervalMul = 0.3f,
                 Price = 500000, Headshot = 0.20f, KillReward = 1500, RecipeId = "88635", RecipeUnlockId = "88535", Materials = "12_20_60|12_39_40|12_42_3", Workload = 50,
                 Desc = "T 阵营的连发狙击枪。【连狙压制】命中让目标 2 秒内无法开火。" },
@@ -163,7 +163,9 @@ namespace CsArsenal
                 Desc = "射速极高的机枪，一次打 150 发。【越打越准】持续开火 2 秒后伤害 +50%，停火即重置。" },
         };
 
-        // Kevlar: the game's own looks (cloned rows keep their skins); four quality rows each like the templates
+        // Kevlar vest and helmet: discontinued (user 11-10). The item, recipe and unlock rows stay defined so saves that
+        // hold them still load, but no bench, tech or merchant offers them any more (CsDefLoader). ArmorBenches is where
+        // they used to be made; the self-test checks they are gone from there.
         public static readonly List<ArmorSpec> Armor = new List<ArmorSpec>
         {
             new ArmorSpec { Base = "8820", Key = "kevlar", Template = "1252", Name = "凯夫拉防弹衣", DefendAdd = 4, Price = 3800, RecipeId = "88606", RecipeUnlockId = "88506",
@@ -191,29 +193,11 @@ namespace CsArsenal
             return byRow.TryGetValue(weaponId, out var s) ? s : null;
         }
 
-        public static string TechDetail()
-        {
-            var names = new List<string>(); foreach (var g in Guns) if (g.Tier == 1) names.Add(g.Name);
-            foreach (var a in Armor) names.Add(a.Name);
-            return "解锁配方（粗制枪械加工台、自动枪械组装台制枪，装甲锻造台制护甲）：" + string.Join("、", names) + "。";
-        }
-
-        public static string Tech4Detail()
-        {
-            var names = new List<string>(); foreach (var g in Guns) if (g.Tier == 4) names.Add(g.Name);
-            return "解锁配方（枪械组装中心制造）：" + string.Join("、", names) + "。";
-        }
-
-        public static string Tech3Detail()
-        {
-            var names = new List<string>(); foreach (var g in Guns) if (g.Tier == 3) names.Add(g.Name);
-            return "解锁配方（枪械组装流水线、枪械组装中心制造）：" + string.Join("、", names) + "。";
-        }
-
-        public static string Tech2Detail()
-        {
-            var names = new List<string>(); foreach (var g in Guns) if (g.Tier == 2) names.Add(g.Name);
-            return "解锁配方（自动枪械组装台、枪械组装流水线制造）：" + string.Join("、", names) + "。";
-        }
+        // one sentence like the game's own techs: the unlock popup has room for about two lines above its row of item
+        // icons, and a list of every gun ran into them (user 11-10). The icons name the guns (hover or click).
+        public static string TechDetail() => "粗制枪械加工台、自动枪械组装台可制造 CS 手枪与宙斯电击枪。";
+        public static string Tech2Detail() => "自动枪械组装台、枪械组装流水线可制造 CS 手枪、冲锋枪与霰弹枪。";
+        public static string Tech3Detail() => "枪械组装流水线、枪械组装中心可制造 CS 步枪、P90 与 SSG 08。";
+        public static string Tech4Detail() => "枪械组装中心可制造 CS 狙击枪与机枪。";
     }
 }

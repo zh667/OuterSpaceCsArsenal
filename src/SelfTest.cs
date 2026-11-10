@@ -99,6 +99,29 @@ namespace CsArsenal
                 c.details.Add(id + ": node shown " + (item != null) + ", CS2 icon " + ok);
                 yield return Shot("tech-" + id);
             }
+            // the "tech researched" popup: its unlock text must end above the row of item icons (a long list of guns ran
+            // into them, user 11-10). Checked on a game tech too, and once more with the old long text, which must be
+            // caught as overlapping, so the measurement itself is proven.
+            foreach (var id in CsTechIcons.TechIds.Concat(new[] { "ranged-3" }))
+            {
+                var dlg = FairyUIDispatcher.showTecholongyComplete(id);
+                yield return new WaitForSecondsRealtime(1.5f);
+                float gap = PopupGap(dlg, null, out int lines, out int icons);
+                bool clear = gap >= 0 && lines > 0 && icons > 0;
+                if (!clear && id != "ranged-3") c.passed = false;
+                c.details.Add("popup " + id + ": " + lines + " lines, " + icons + " icons, text ends " + gap.ToString("0") + " px above the icons" + (clear ? "" : " OVERLAP"));
+                if (id == CsData.Tech3Id)
+                {
+                    yield return Shot("popup-" + id);
+                    string old = "解锁配方（枪械组装流水线、枪械组装中心制造）：" + string.Join("、", CsData.Guns.Where(g => g.Tier == 3).Select(g => g.Name)) + "。";
+                    float oldGap = PopupGap(dlg, old, out int oldLines, out _);
+                    bool caught = oldGap < 0;
+                    if (!caught) c.passed = false;
+                    c.details.Add("old long text: " + oldLines + " lines, gap " + oldGap.ToString("0") + " px, caught as overlap " + caught);
+                }
+                try { dlg?.closeDialog(); } catch { }
+                yield return new WaitForSecondsRealtime(0.5f);
+            }
             // every item, recipe and recipe-unlock row draws our CS2 picture, not the icon of the game row it was cloned from
             int withIcon = 0, total = 0;
             void Count(BaseDef d) { if (d == null) return; total++; if (d.RawIcon != null && d.Sprite_RawIcon != null) withIcon++; else c.details.Add("no CS2 picture on " + d.GetType().Name + " " + d.ID); }
@@ -115,6 +138,30 @@ namespace CsArsenal
             c.details.Add("rows with our CS2 picture " + withIcon + "/" + total);
             if (withIcon != total || total == 0) c.passed = false;
             c.summary = string.Join("; ", c.details.Take(6));
+        }
+
+        // pixels between the bottom of the popup's unlock text and the top of its first item icon (negative = overlap)
+        static float PopupGap(TechonologyComplete dlg, string text, out int lines, out int icons)
+        {
+            lines = 0; icons = 0;
+            var info = dlg?.transform.Find("Info");
+            var label = info?.Find("Unlock_Content/Label")?.GetComponent<TMPro.TextMeshProUGUI>();
+            var grid = info?.Find("Scroll View_Item/Grid");
+            if (label == null || grid == null) return -9999;
+            if (text != null) label.text = text;
+            label.ForceMeshUpdate();
+            lines = label.textInfo.lineCount;
+            float bottom = float.MaxValue;
+            for (int i = 0; i < label.textInfo.characterCount; i++)
+            {
+                var ch = label.textInfo.characterInfo[i];
+                if (ch.isVisible) bottom = Mathf.Min(bottom, label.rectTransform.TransformPoint(new Vector3(0, ch.descender, 0)).y);
+            }
+            float top = float.MinValue; var corners = new Vector3[4];
+            foreach (Transform t in grid)
+                if (t.gameObject.activeSelf && t is RectTransform rt) { icons++; rt.GetWorldCorners(corners); top = Mathf.Max(top, corners[1].y); }
+            if (bottom == float.MaxValue || icons == 0) return -9999;
+            return bottom - top;
         }
 
         Check CheckDefs()
@@ -147,16 +194,21 @@ namespace CsArsenal
                 var p = ImplDef<F_ProductListDef>.getDataID(a.RecipeId);
                 if (p == null || p.OutMaterial != "17_" + a.Row(0) + "_1") { c.passed = false; c.details.Add("armour recipe " + a.RecipeId + " " + p?.OutMaterial); }
             }
-            int expectRows = (CsData.Guns.Count + CsData.Armor.Count) * 4, expectSoldiers = CsData.Guns.Count(g => g.Category != "zeus");
+            // armour is discontinued (11-10): merchants neither sell nor buy it (its rows sit in no group)
+            int expectRows = CsData.Guns.Count * 4, expectBuy = CsData.Guns.Count * 4, expectSoldiers = CsData.Guns.Count(g => g.Category != "zeus");
+            int armourGoods = ImplDef<MapTraderBuyDef>.beans.Count(r => r.ID.Length == 6 && r.ID.StartsWith("886") && r.ItemGroup == -1 && r.itemReward?.type == 17);
+            int armourBuys = ImplDef<MapTraderSellDef>.beans.Count(r => r.ID.Length == 6 && r.ID.StartsWith("887") && r.ItemGroup == -1 && r.ItemId != null && r.ItemId.StartsWith("17_"));
+            c.details.Add("discontinued armour rows out of every merchant group: goods " + armourGoods + ", purchases " + armourBuys + " (of " + CsData.Armor.Count * 4 + " each)");
+            if (armourGoods != CsData.Armor.Count * 4 || armourBuys != CsData.Armor.Count * 4) c.passed = false;
             int goods = ImplDef<MapTraderBuyDef>.beans.Count(r => r.ID.Length == 6 && r.ID.StartsWith("886") && r.ItemGroup == 1 && r.itemReward != null && r.ItemId == r.itemReward.type + "_" + r.itemReward.id);
             int purchases = ImplDef<MapTraderSellDef>.beans.Count(r => r.ID.Length == 6 && r.ID.StartsWith("887") && r.ItemGroup == 1);
             var soldierIds = new HashSet<string>(Enumerable.Range(0, CsData.Guns.Count).Select(CsData.SoldierId));
             int soldiers = ImplDef<ESoliderConfigDef>.beans.Count(r => soldierIds.Contains(r.ID));
             int squads = ImplDef<E_SquadConfig_Def>.beans.Count(r => r.SoliderSelected != null && r.SoliderSelected.Split('|').Any(s => soldierIds.Contains(s.Split('_')[0])));
-            c.details.Add("weapon merchants sell " + goods + " and buy " + purchases + " rows (expected " + expectRows + "), soldiers " + soldiers + " in " + squads + " squads");
+            c.details.Add("weapon merchants sell " + goods + " and buy " + purchases + " rows (expected " + expectRows + " and " + expectBuy + "), soldiers " + soldiers + " in " + squads + " squads");
             var sd = ImplDef<ESoliderConfigDef>.getDataID(CsData.SoldierBase + "0");
             if (sd != null) c.details.Add("soldier " + sd.ID + " " + sd.Name + " equip " + sd.Equip);
-            if (goods != expectRows || purchases != expectRows || soldiers != expectSoldiers || squads == 0) c.passed = false;
+            if (goods != expectRows || purchases != expectBuy || soldiers != expectSoldiers || squads == 0) c.passed = false;
             c.details.Add("config killRewardMultiplier " + CsConfig.Get().killRewardMultiplier);
             int withSound = CsData.Guns.Count(g => ImplDef<T_WeaponDef>.getDataID(g.Row(0))?.ATKMusic?.StartsWith(CsSound.Prefix) == true);
             c.details.Add("CS2 sounds: " + withSound + "/" + CsData.Guns.Count + " guns, files missing " + CsSound.Missing + (CsSound.Error != null ? ", error " + CsSound.Error : ""));
@@ -170,11 +222,29 @@ namespace CsArsenal
                 if (bd != null && (bd.ProductID ?? "").Split('|').Contains(recipe)) placed++; else c.details.Add("recipe " + recipe + " missing on bench " + bench);
             }
             foreach (var g in CsData.Guns) foreach (var id in CsData.GunBenches[g.Tier]) OnBench(id, g.RecipeId);
-            foreach (var a in CsData.Armor) foreach (var id in CsData.ArmorBenches) OnBench(id, a.RecipeId);
             c.details.Add("recipes on the game's benches " + placed + "/" + wanted);
             if (placed != wanted) c.passed = false;
+            // discontinued armour: on no bench, unlocked by no tech
+            int armourLeft = 0;
+            foreach (var a in CsData.Armor)
+            {
+                foreach (var id in CsData.ArmorBenches) if ((ImplDef<F_ManufactureDef>.getDataID(id)?.ProductID ?? "").Split('|').Contains(a.RecipeId)) armourLeft++;
+                foreach (var t in ImplDef<TechnologyDef>.beans) if (t?.NonBuilding_unlock != null && t.NonBuilding_unlock.Split('|').Contains(a.RecipeUnlockId)) armourLeft++;
+            }
+            c.details.Add("armour still on a bench or a tech " + armourLeft);
+            if (armourLeft != 0) c.passed = false;
+            // the in-game texts: no gun still promises a dropped effect (capture, piercing, door breaching)
+            foreach (var g in CsData.Guns)
+            {
+                var wr = ImplDef<T_WeaponDef>.getDataID(g.Row(0));
+                foreach (var bad in new[] { "制服", "俘虏", "贯穿", "穿墙", "破门" })
+                    if ((wr?.Desc ?? "").Contains(bad) || (ImplDef<TechnologyUnlockItemDef>.getDataID(g.RecipeUnlockId ?? "")?.Desc ?? "").Contains(bad))
+                    { c.passed = false; c.details.Add(g.Name + " text still says " + bad); }
+                if (wr != null && !wr.Desc.StartsWith(g.Desc)) { c.passed = false; c.details.Add(g.Name + " row text is not its CsData text"); }
+            }
+            foreach (var k in new[] { "awp", "revolver", "ump45", "nova", "mag7" }) { var gg = CsData.Guns.First(x => x.Key == k); c.details.Add(gg.Name + ": " + ImplDef<T_WeaponDef>.getDataID(gg.Row(0))?.Desc?.Split('\n')[0]); }
             int locks = 0, lockable = 0;
-            foreach (var (rid, uid, tech) in CsData.Guns.Select(g => (g.RecipeId, g.RecipeUnlockId, "cs-" + g.Tier)).Concat(CsData.Armor.Select(a => (a.RecipeId, a.RecipeUnlockId, CsData.TechId))))
+            foreach (var (rid, uid, tech) in CsData.Guns.Select(g => (g.RecipeId, g.RecipeUnlockId, "cs-" + g.Tier)))
             {
                 lockable++;
                 var td = ImplDef<TechnologyDef>.getDataID(tech);

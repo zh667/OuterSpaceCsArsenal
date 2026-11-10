@@ -96,9 +96,9 @@ namespace CsArsenal
                 {
                     T_ClothDef r = ImplDef<T_ClothDef>.getTemplateDef(a.Template + q);
                     if (r == null) { Report.Add("no armour template " + a.Template + q); continue; }
-                    r.ID = a.Row(q); r.mod = cfg; r.ClassID = a.Base; r.Name = a.Name; r.Desc = a.Desc;
+                    r.ID = a.Row(q); r.mod = cfg; r.ClassID = a.Base; r.Name = a.Name; r.Desc = "（已停产）" + a.Desc;
                     r.Defend += a.DefendAdd; if (a.HeadProtect >= 0) r.HeadProtect = a.HeadProtect;
-                    r.Price = a.Price; r.Obtain = BenchNames(CsData.ArmorBenches) + "；商人售卖";
+                    r.Price = a.Price; r.Obtain = "已停产，只剩旧存档里已有的（商人不卖也不收）";   // discontinued 11-10 (CsData.Armor)
                     r.RawIcon = "icons/" + a.Key + ".png";   // CS2 HUD silhouette (tools/assets/make_icons.py)
                     Replace(r); n++;
                     ModIconCombine.additions.RemoveAll(b => b is T_ClothDef && b.ID == r.ID);
@@ -125,7 +125,10 @@ namespace CsArsenal
                 {
                     b.ID = "886" + k.ToString("000"); b.mod = cfg; b.ItemId = it.type + "_" + it.id; b.DescItem = it.name;
                     b.itemReward = new FWRewardBean(int.Parse(it.type), it.id, 0);
-                    Replace(b); sold++;
+                    // discontinued armour: the row stays (a caravan in a save may still hold it) but in no goods group,
+                    // so no merchant stocks it any more; nor buys it (the purchase row below, user 11-10)
+                    if (it.armour) b.ItemGroup = -1;
+                    Replace(b); if (!it.armour) sold++;
                 }
                 MapTraderSellDef s = ImplDef<MapTraderSellDef>.getTemplateDef("493");
                 if (s == null) Report.Add("no merchant purchase template 493");
@@ -133,7 +136,8 @@ namespace CsArsenal
                 {
                     s.ID = "887" + k.ToString("000"); s.mod = cfg; s.ItemId = it.type + "_" + it.id; s.DescItem = it.name;
                     s.itemReward = new FWRewardBean(int.Parse(it.type), it.id, 0);
-                    Replace(s); bought++;
+                    if (it.armour) s.ItemGroup = -1;
+                    Replace(s); if (!it.armour) bought++;
                 }
                 k++;
             }
@@ -219,6 +223,8 @@ namespace CsArsenal
                 // the recipe stays locked until its CS tech is researched (the game's own guns do the same)
                 RecipeUnlock(g.RecipeUnlockId, g.RecipeId, g.Name, g.Desc, CsData.GunBenches[g.Tier], "icons/" + g.Key + ".png");
             }
+            // discontinued armour (11-10): its recipe and unlock rows stay defined for saves that already know them, but
+            // no bench lists the recipe and no tech unlocks it
             foreach (var a in CsData.Armor)
             {
                 F_ProductListDef r = ImplDef<F_ProductListDef>.getTemplateDef("61011");
@@ -266,7 +272,6 @@ namespace CsArsenal
                 if (!list.Contains(recipe)) { list.Add(recipe); b.ProductID = string.Join("|", list); n++; }
             }
             foreach (var g in CsData.Guns) foreach (var id in CsData.GunBenches[g.Tier]) Put(id, g.RecipeId);
-            foreach (var a in CsData.Armor) foreach (var id in CsData.ArmorBenches) Put(id, a.RecipeId);
             Report.Add("recipes on the game's benches " + n);
         }
 
@@ -276,7 +281,7 @@ namespace CsArsenal
             if (d == null) { Report.Add("no tech template"); return; }
             // place found by tools/tech_layout.py (no overlap with the game's cards, lines or the EfTurrets nodes)
             d.ID = CsData.TechId; d.mod = cfg; d.Name = "CS-1 手枪训练"; d.Detail = CsData.TechDetail(); d.Detail_2 = "";
-            var unlocks = CsData.Guns.Where(g => g.Tier == 1).Select(g => g.RecipeUnlockId).Concat(CsData.Armor.Select(a => a.RecipeUnlockId)).Where(x => x != null);
+            var unlocks = CsData.Guns.Where(g => g.Tier == 1).Select(g => g.RecipeUnlockId).Where(x => x != null);   // no armour since 11-10
             d.Building_unlock = "-1"; d.NonBuilding_unlock = string.Join("|", unlocks);
             d.Pre_technology = "ranged-1"; d.PathNode = "ranged-1,t:950.0,800:l"; d.HexGridX = 1050; d.HexGridY = 800;
             d.S_Materials = "12_15_40|12_16_40|12_58_2"; d.Level = 1;

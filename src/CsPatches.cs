@@ -6,12 +6,13 @@ using UnityEngine;
 namespace CsArsenal
 {
     // Harmony patches (Workshop item com.harmony is a declared dependency).
-    //   BaseRole.beHit            headshots, Zeus execution, P250 armour piercing, USP first-shot headshot; afterwards
+    //   BaseRole.beHit            headshots, Zeus execution, AWP one-shot, P250 armour piercing, USP first-shot headshot; afterwards
     //                             kill rewards: the hit took a standing target down (dead or fallen: monsters die,
     //                             animals and people fall first, enemies then become prisoners)
     //   (CS-2 signature effects: CsEffects.cs)
     //   BaseHero.doFight_Shoot    Glock: single shots while moving (bursts only when standing); Dual Berettas: the
-    //                             second shot goes to another enemy the shooter hates, if one is standing in range
+    //                             second shot goes to another enemy the shooter hates, if one is standing in range and in
+    //                             sight (the game's own SightTools check: no shots through walls, user 11-10)
     public static class CsPatches
     {
         public static Harmony H;
@@ -73,6 +74,7 @@ namespace CsArsenal
                     return;
                 }
                 if (g.AntiArmor > 0) hurtStruct.ArmorPenetration = Math.Max(hurtStruct.ArmorPenetration, g.AntiArmor);
+                if (g.Key == "awp" && AwpOneShot(__instance, ref hurtStruct, person)) return;
                 float chance = g.Headshot;
                 if (g.Key == "usp_silencer" && firstHit) chance = 1f;   // the first hit a target ever takes
                 if (g.Key == "m4a1_silencer" && CsEffects.TakeCrit(hurtStruct.from)) { chance = 1f; CsStats.Add(CsStats.Effects, g.Key + " crit"); }
@@ -95,7 +97,6 @@ namespace CsArsenal
             if (!__state) return;
             try
             {
-                if (hurtStruct.weaponDef != null && CsData.ByWeapon(hurtStruct.weaponDef.ID)?.Key == "awp") CsEffects.Pierce(__instance, hurtStruct, CsData.ByWeapon(hurtStruct.weaponDef.ID));
                 if (!Down(__instance)) return;
                 var g = CsData.ByWeapon(hurtStruct.weaponDef?.ID);
                 if (g == null) return;
@@ -111,6 +112,19 @@ namespace CsArsenal
                 Popup(shooter, "+" + reward + " 信用点");
             }
             catch (Exception e) { Debug.LogWarning("[CsArsenal] kill reward: " + e.Message); }
+        }
+
+        // AWP 一枪一个 (user 11-10; replaced the shot that went on through every enemy on the line, walls included): a
+        // person of another side at full health, shot by the player's side, goes down at once (the game then decides,
+        // by the gun's own knock-down chance, whether it lies there or dies); monsters take x1.5. People shooting the
+        // player's colonists with an AWP do normal damage. True = this hit is settled (no headshot roll).
+        static bool AwpOneShot(BaseRole target, ref HurtStruct h, bool person)
+        {
+            if (!person) { h.atk = (int)(h.atk * 1.5f); CsStats.Add(CsStats.Effects, "awp monster x1.5"); return false; }
+            if (!(h.from is BaseRole shooter) || shooter.getAlliance() != 1 || target.getAlliance() == 1) return false;
+            if (target.roleBean.getHp() < target.roleBean.getMaxHp()) return false;
+            h.atk = 999999; CsStats.Add(CsStats.Effects, "awp one shot"); Popup(target, "一枪一个");
+            return true;
         }
 
         // any helmet stops a headshot with its own head protection (T_ClothDef.HeadProtect; 凯夫拉头盔 0.5)
@@ -166,6 +180,7 @@ namespace CsArsenal
                 if (s == null || s == current || s == h) return;
                 if (s is BaseRole r && (r.roleBean == null || r.roleBean.isDead() || r.roleBean.isFallDown() || r.getAlliance() == h.getAlliance())) return;
                 if (MathTool.getDistanceI(h.localPos.x, h.localPos.y, s.localPos.x, s.localPos.y) > rangePx) return;
+                if (!SightTools.isInSight(h, s)) { CsStats.Add(CsStats.Effects, "elite no sight"); return; }   // behind a wall
                 float d = current == null ? 0 : MathTool.getDistanceI(current.localPos.x, current.localPos.y, s.localPos.x, s.localPos.y);
                 if (d < bestD) { best = s; bestD = d; }
             }
