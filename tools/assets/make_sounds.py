@@ -12,7 +12,8 @@ AW = r"E:\projects\CSMCReverse\local_cs2_analysis\all_weapons"
 OUT = os.path.join(ROOT, "res", "Resources", "Sounds")
 KEYS = ["glock18", "usp_silencer", "hkp2000", "p250", "elite", "taser", "tec9", "fiveseven", "cz75a", "deagle", "revolver",
         "mac10", "mp9", "mp7", "mp5sd", "ump45", "bizon", "nova", "sawedoff", "mag7", "xm1014",
-        "p90", "galilar", "famas", "ak47", "m4a4", "m4a1_silencer", "ssg08", "sg556", "aug"]
+        "p90", "galilar", "famas", "ak47", "m4a4", "m4a1_silencer", "ssg08", "sg556", "aug",
+        "awp", "g3sg1", "scar20", "m249", "negev"]
 SR = 22050
 BLENDER = r"E:\Develop\Blender-5.1.0-Beta\blender.exe"   # its audio library (aud, ffmpeg inside) decodes the mp3 sources
 CACHE = os.path.join(tempfile.gettempdir(), "csa_sound_cache")

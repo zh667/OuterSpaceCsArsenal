@@ -204,5 +204,43 @@
    "aug_fire_2.wav"
   ],
   "reload": "aug_reload.wav"
+ },
+ "awp": {
+  "fire": [
+   "awp_fire_0.wav",
+   "awp_fire_1.wav"
+  ],
+  "reload": "awp_reload.wav"
+ },
+ "g3sg1": {
+  "fire": [
+   "g3sg1_fire_0.wav",
+   "g3sg1_fire_1.wav",
+   "g3sg1_fire_2.wav"
+  ],
+  "reload": "g3sg1_reload.wav"
+ },
+ "scar20": {
+  "fire": [
+   "scar20_fire_0.wav",
+   "scar20_fire_1.wav",
+   "scar20_fire_2.wav"
+  ],
+  "reload": "scar20_reload.wav"
+ },
+ "m249": {
+  "fire": [
+   "m249_fire_0.wav",
+   "m249_fire_1.wav",
+   "m249_fire_2.wav"
+  ],
+  "reload": "m249_reload.wav"
+ },
+ "negev": {
+  "fire": [
+   "negev_fire_0.wav",
+   "negev_fire_1.wav"
+  ],
+  "reload": "negev_reload.wav"
  }
 }

@@ -145,7 +145,7 @@ namespace CsArsenal
             }
             c.details.Add("recipes locked behind their CS tech " + locks + "/" + lockable);
             if (locks != lockable) c.passed = false;
-            foreach (var tid in new[] { CsData.TechId, CsData.Tech2Id, CsData.Tech3Id })
+            foreach (var tid in new[] { CsData.TechId, CsData.Tech2Id, CsData.Tech3Id, CsData.Tech4Id })
             {
                 var td = ImplDef<TechnologyDef>.getDataID(tid);
                 if (td == null) { c.passed = false; c.details.Add("missing tech " + tid); }
@@ -333,7 +333,7 @@ namespace CsArsenal
         static readonly Dictionary<string, string> RequiredEffect = new Dictionary<string, string>
         {
             ["fiveseven"] = "fiveseven stack", ["cz75a"] = "cz75a fast step", ["mp9"] = "mp9 slow", ["ump45"] = "ump45 close",
-            ["sawedoff"] = "sawedoff ", ["m4a4"] = "m4a4 stack", ["p90"] = "p90 fast step", ["ssg08"] = "ssg08 burst",   // close or far: the monsters may die before they come within 3 cells ["mac10"] = "mac10 burst", ["mp5sd"] = "mp5sd burst", ["bizon"] = "bizon rounds back",
+            ["sawedoff"] = "sawedoff ", ["m4a4"] = "m4a4 stack", ["p90"] = "p90 fast step", ["ssg08"] = "ssg08 burst", ["g3sg1"] = "g3sg1 suppress", ["negev"] = "negev steady",   // close or far: the monsters may die before they come within 3 cells ["mac10"] = "mac10 burst", ["mp5sd"] = "mp5sd burst", ["bizon"] = "bizon rounds back",
         };
         static readonly HashSet<string> KillEffect = new HashSet<string> { "mac10", "mp5sd", "bizon", "deagle", "ssg08" };
 

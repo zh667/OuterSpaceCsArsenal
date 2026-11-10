@@ -20,7 +20,7 @@ namespace CsArsenal
         {
             Report.Clear();
             try { ResourcesDir = cfg.getVersionPath("Resources"); } catch (Exception e) { Debug.LogError("[CsArsenal] path: " + e); }
-            Try("guns", AddGuns); Try("armor", AddArmor); Try("recipes", AddRecipes); Try("benches", AddToBenches); Try("tech", AddTech); Try("tech2", AddTech2); Try("tech3", AddTech3);
+            Try("guns", AddGuns); Try("armor", AddArmor); Try("recipes", AddRecipes); Try("benches", AddToBenches); Try("tech", AddTech); Try("tech2", AddTech2); Try("tech3", AddTech3); Try("tech4", AddTech4);
             Try("traders", AddTraders); Try("soldiers", AddSoldiers);
             Debug.Log("[CsArsenal] defs: " + string.Join("; ", Report));
         }
@@ -76,7 +76,7 @@ namespace CsArsenal
                     if (fx == "laser") { r.FireType = "laser\\LaserMuzzle"; r.BulletId = "laser\\Laser Bullet 1"; r.HitHuman = r.HitLand = r.HitOther = "laser\\Laser Hit 1"; }
                     else if (fx == "sniper") { r.FireType = "sniper rifle\\SniperMuzzle"; r.BulletId = "sniper rifle\\Sniper Bullet"; r.HitHuman = r.HitLand = r.HitOther = "sniper rifle\\Sniper Hit"; }
                     else { r.FireType = "machine gun\\MachineMuzzle"; r.BulletId = "machine gun\\Machine Bullet"; r.HitHuman = r.HitLand = r.HitOther = "machine gun\\Machine Hit"; }
-                    r.BulletSpeed = fx == "sniper" ? 50f : g.Category == "shotgun" || g.Category == "rifle" ? 45f : g.Category == "smg" ? 38f : g.Category == "zeus" ? 60f : 35f;
+                    r.BulletSpeed = fx == "sniper" ? 50f : g.Category == "shotgun" || g.Category == "rifle" || g.Category == "mg" ? 45f : g.Category == "smg" ? 38f : g.Category == "zeus" ? 60f : 35f;
                     r.Obtain = BenchNames(CsData.GunBenches[g.Tier]) + "；商人售卖" + (g.Category == "zeus" ? "" : "；敌人掉落");
                     r.RawIcon = "icons/" + g.Key + ".png";
                     Replace(r);
@@ -147,7 +147,7 @@ namespace CsArsenal
             {
                 var g = CsData.Guns[i];
                 if (g.Category == "zeus") continue;   // a one-shot stun gun is no raider's weapon
-                string tpl = g.Tier == 1 ? CsData.SoldierTemplate : g.Tier == 2 ? CsData.Soldier2Template : CsData.Soldier3Template;
+                string tpl = g.Tier == 1 ? CsData.SoldierTemplate : g.Tier == 2 ? CsData.Soldier2Template : g.Tier == 3 ? CsData.Soldier3Template : CsData.Soldier4Template;
                 ESoliderConfigDef s = ImplDef<ESoliderConfigDef>.getTemplateDef(tpl);
                 if (s == null) { Report.Add("no soldier template " + tpl); continue; }
                 s.ID = CsData.SoldierId(i); s.mod = cfg;
@@ -160,10 +160,10 @@ namespace CsArsenal
             foreach (var sq in ImplDef<E_SquadConfig_Def>.beans)
             {
                 if (sq == null || sq.SoliderSelected == null || sq.Desc == null || sq.SoliderSelected.Contains("|" + CsData.SoldierBase.Substring(0, 3))) continue;
-                int tier = sq.Desc.StartsWith("1级无邦者") ? 1 : sq.Desc.StartsWith("2级无邦者") ? 2 : sq.Desc.StartsWith("3级无邦者") ? 3 : 0;
+                int tier = sq.Desc.StartsWith("1级无邦者") ? 1 : sq.Desc.StartsWith("2级无邦者") ? 2 : sq.Desc.StartsWith("3级无邦者") ? 3 : sq.Desc.StartsWith("4级无邦者") ? 4 : 0;
                 if (tier == 0 || !byTier.TryGetValue(tier, out var ids)) continue;
                 // the tier's guerrilla, assault and (tier 3) rifle soldiers
-                var kinds = tier == 1 ? new[] { "0", "1" } : tier == 2 ? new[] { "10", "11" } : new[] { "20", "21", "22" };
+                var kinds = tier == 1 ? new[] { "0", "1" } : tier == 2 ? new[] { "10", "11" } : tier == 3 ? new[] { "20", "21", "22" } : new[] { "32", "33", "35" };
                 bool uses = false;
                 foreach (var part in sq.SoliderSelected.Split('|')) { var id = part.Split('_')[0]; if (kinds.Contains(id)) uses = true; }
                 if (!uses) continue;
@@ -186,6 +186,19 @@ namespace CsArsenal
             Report.Add("tech " + d.ID + " with " + unlocks.Count + " recipes");
         }
 
+        void AddTech4()
+        {
+            TechnologyDef d = ImplDef<TechnologyDef>.getTemplateDef(CsData.Tech4Parent);
+            if (d == null) { Report.Add("no tech template " + CsData.Tech4Parent); return; }
+            var unlocks = CsData.Guns.Where(g => g.Tier == 4 && g.RecipeUnlockId != null).Select(g => g.RecipeUnlockId).ToList();
+            d.ID = CsData.Tech4Id; d.mod = cfg; d.Name = "CS-4 精确与压制"; d.Detail = CsData.Tech4Detail(); d.Detail_2 = "";
+            d.Building_unlock = "-1"; d.NonBuilding_unlock = string.Join("|", unlocks);
+            d.Pre_technology = CsData.Tech4Parent; d.PathNode = "ranged-4,t:22450.0,250:l"; d.HexGridX = 22550; d.HexGridY = 250;   // tools/tech_layout.py
+            d.S_Materials = "12_42_18|12_39_22|12_41_3"; d.Level = 4;
+            Replace(d);
+            Report.Add("tech " + d.ID + " with " + unlocks.Count + " recipes");
+        }
+
         static int StableHash(string s) { int h = 17; foreach (char c in s) h = h * 31 + c; return h; }
 
         void AddRecipes()
@@ -197,7 +210,7 @@ namespace CsArsenal
                 if (r == null) { Report.Add("no recipe template 61011"); return; }
                 r.ID = g.RecipeId; r.mod = cfg; r.Name = g.Name; r.Desc = g.Desc;
                 r.Materials = g.Materials; r.OutMaterial = "18_" + g.Row(0) + "_1"; r.Workload = g.Workload;
-                r.Show_Toast = "分类：" + (g.Category == "zeus" ? "电击枪" : g.Category == "smg" ? "冲锋枪" : g.Category == "shotgun" ? "霰弹枪" : g.Category == "rifle" ? "步枪" : g.Category == "sniper" ? "狙击枪" : "手枪");
+                r.Show_Toast = "分类：" + (g.Category == "zeus" ? "电击枪" : g.Category == "smg" ? "冲锋枪" : g.Category == "shotgun" ? "霰弹枪" : g.Category == "rifle" ? "步枪" : g.Category == "sniper" ? "狙击枪" : g.Category == "mg" ? "机枪" : "手枪");
                 Replace(r); n++;
                 // the recipe stays locked until its CS tech is researched (the game's own guns do the same)
                 RecipeUnlock(g.RecipeUnlockId, g.RecipeId, g.Name, g.Desc, CsData.GunBenches[g.Tier]);

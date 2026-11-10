@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using HarmonyLib;
 using UnityEngine;
 
@@ -29,6 +30,81 @@ namespace CsArsenal
         static readonly Dictionary<long, float> rateCarry = new Dictionary<long, float>();
         static readonly Dictionary<long, double> lastMove = new Dictionary<long, double>();      // role -> last time it moved
         static readonly Dictionary<long, double> crit = new Dictionary<long, double>();          // shooter -> its next hit is a headshot (until)
+        static readonly Dictionary<long, double> suppressed = new Dictionary<long, double>();    // G3SG1: role -> cannot fire until
+        static readonly Dictionary<long, KeyValuePair<double, Vector3>> mgFire = new Dictionary<long, KeyValuePair<double, Vector3>>();   // M249 holder -> last shot (time, place)
+        static readonly Dictionary<long, KeyValuePair<double, double>> negevRun = new Dictionary<long, KeyValuePair<double, double>>(); // Negev holder -> (run start, last shot)
+        static readonly Dictionary<long, KeyValuePair<long, KeyValuePair<int, double>>> famas = new Dictionary<long, KeyValuePair<long, KeyValuePair<int, double>>>();
+        [ThreadStatic] static bool piercing;
+
+        // FAMAS: the third of three hits in a row on the same target within one burst (0.6 s)
+        public static bool FamasThird(SpriteObject shooter, BaseRole target)
+        {
+            if (shooter == null) return false;
+            lock (gate)
+            {
+                long su = shooter.getUID(), tu = target.getUID();
+                int n = famas.TryGetValue(su, out var kv) && kv.Key == tu && Now - kv.Value.Value < 0.6 ? kv.Value.Key + 1 : 1;
+                famas[su] = new KeyValuePair<long, KeyValuePair<int, double>>(tu, new KeyValuePair<int, double>(n >= 3 ? 0 : n, Now));
+                return n >= 3;
+            }
+        }
+
+        // BaseHero.doFight_Shoot: machine-gun fire bookkeeping
+        public static void OnShot(BaseHero h, GunSpec g)
+        {
+            lock (gate)
+            {
+                long u = h.getUID();
+                if (g.Key == "m249") mgFire[u] = new KeyValuePair<double, Vector3>(Now, h.localPos);
+                else if (g.Key == "negev")
+                {
+                    var start = negevRun.TryGetValue(u, out var kv) && Now - kv.Value < 0.8 ? kv.Key : Now;
+                    negevRun[u] = new KeyValuePair<double, double>(start, Now);
+                }
+            }
+        }
+
+        public static bool Suppressed(BaseRole r)
+        {
+            if (suppressed.Count == 0 || r == null) return false;
+            lock (gate)
+            {
+                if (!suppressed.TryGetValue(r.getUID(), out double u)) return false;
+                if (u < Now) { suppressed.Remove(r.getUID()); return false; }
+                return true;
+            }
+        }
+
+        // AWP: the same shot goes on through every enemy standing on the line behind the target, 25 % weaker each time
+        public static void Pierce(BaseRole target, HurtStruct h, GunSpec g)
+        {
+            if (piercing || !(h.from is BaseRole shooter)) return;
+            piercing = true;
+            try
+            {
+                Vector2 a = (Vector2)shooter.localPos, b = (Vector2)target.localPos, dir = (b - a).normalized;
+                float behind = (b - a).magnitude, reach = Math.Max(behind, (h.weaponDef?.Range ?? 1500));
+                var mm = MapManager.getInstance(); var line = new List<KeyValuePair<float, BaseRole>>();
+                void Consider(BaseRole r)
+                {
+                    if (r == null || r == target || r == shooter || r.roleBean == null || r.roleBean.isDead() || r.roleBean.isFallDown() || r.getAlliance() == shooter.getAlliance()) return;
+                    Vector2 p = (Vector2)r.localPos - a; float along = Vector2.Dot(p, dir);
+                    if (along <= behind || along > reach) return;
+                    if ((p - dir * along).magnitude > 22f) return;
+                    line.Add(new KeyValuePair<float, BaseRole>(along, r));
+                }
+                foreach (var m in mm.monsterManager.getMonsters()) Consider(m);
+                foreach (var f in mm.heroManager.getFactions()) foreach (var r in f.getRoles()) Consider(r);
+                float mul = 1f;
+                foreach (var kv in line.OrderBy(x => x.Key))
+                {
+                    mul *= 0.75f; var h2 = h; h2.atk = (int)(h.atk * mul); h2.target = kv.Value;
+                    kv.Value.beHit(h2); CsStats.Add(CsStats.Effects, "awp pierce");
+                }
+            }
+            catch (Exception e) { UnityEngine.Debug.LogWarning("[CsArsenal] awp: " + e.Message); }
+            finally { piercing = false; }
+        }
 
         public static void Moved(BaseRole r) { lock (gate) lastMove[r.getUID()] = Now; }
         static bool Scoped(SpriteObject shooter) => shooter != null && (!lastMove.TryGetValue(shooter.getUID(), out double t) || Now - t >= 1.0);
@@ -59,6 +135,14 @@ namespace CsArsenal
             long uid = target.getUID();
             lock (gate)
             {
+                // M249 cover: a friendly machine gunner who fired within the last second, 5 cells away at most
+                if (target is BaseHero && mgFire.Count > 0)
+                    foreach (var kv in mgFire)
+                        if (Now - kv.Value.Key < 1.0 && (kv.Value.Value - target.localPos).magnitude <= 5 * 32 && kv.Key != h.from?.getUID())
+                        {
+                            var gunner = MapManager.getInstance().heroManager.getHeroByUID(kv.Key);
+                            if (gunner != null && gunner.getAlliance() == target.getAlliance()) { h.atk = (int)(h.atk * 0.85f); CsStats.Add(CsStats.Effects, "m249 cover"); break; }
+                        }
                 Active(shred, uid, out int sh);
                 if (sh > 0) { h.ArmorPenetration = Math.Min(1f, h.ArmorPenetration + 0.1f * sh); CsStats.Add(CsStats.Effects, "fiveseven shred applied"); }
                 if (g == null) return;
@@ -84,6 +168,13 @@ namespace CsArsenal
                             h.atk = (int)(h.atk * Mathf.Clamp(mul, 0.5f, 1.5f)); CsStats.Add(CsStats.Effects, d <= 3f ? "sawedoff close" : "sawedoff far");
                             break;
                         }
+                    case "g3sg1":
+                        suppressed[uid] = Now + 2; CsStats.Add(CsStats.Effects, "g3sg1 suppress");
+                        break;
+                    case "negev":
+                        if (h.from != null && negevRun.TryGetValue(h.from.getUID(), out var run) && Now - run.Value < 0.8 && Now - run.Key >= 2.0)
+                        { h.atk = (int)(h.atk * 1.5f); CsStats.Add(CsStats.Effects, "negev steady"); }
+                        break;
                     case "m4a4":
                         {
                             long su = h.from?.getUID() ?? 0;
@@ -143,7 +234,7 @@ namespace CsArsenal
         {
             float m = 1f;
             var g = CsData.ByWeapon(h.heroBean?.CurWeapon?.getWeaponDef()?.ID);
-            if (g != null) { if (g.Key == "tec9" || g.Key == "ssg08") m *= 1.10f; else if (g.Key == "mac10") m *= 1.15f; }
+            if (g != null) { if (g.Key == "tec9" || g.Key == "ssg08") m *= 1.10f; else if (g.Key == "mac10") m *= 1.15f; else if (g.Key == "awp") m *= 0.85f; }
             lock (gate) { float b = Active(speed, h.getUID(), out _); if (b > 0) m *= b; }
             return m;
         }
@@ -180,16 +271,22 @@ namespace CsArsenal
             }
         }
 
-        public static void Clear() { lock (gate) { shred.Clear(); slow.Clear(); speed.Clear(); streak.Clear(); refund.Clear(); reset.Clear(); rateCarry.Clear(); lastMove.Clear(); crit.Clear(); } }
+        public static void Clear() { lock (gate) { suppressed.Clear(); mgFire.Clear(); negevRun.Clear(); famas.Clear(); shred.Clear(); slow.Clear(); speed.Clear(); streak.Clear(); refund.Clear(); reset.Clear(); rateCarry.Clear(); lastMove.Clear(); crit.Clear(); } }
     }
 
     [HarmonyPatch(typeof(AimingDevice), nameof(AimingDevice.logic))]
     static class AimPatch
     {
-        static void Prefix(BaseRole ___role, T_WeaponDef ___weaponDef, sbyte ___step, TimeDelay_Game ___readyInteval, TimeDelay_Game ___roundInteval, TimeDelay_Game ___bulletInteval, ref int ___totleBulletSum)
+        static bool Prefix(BaseRole ___role, T_WeaponDef ___weaponDef, sbyte ___step, TimeDelay_Game ___readyInteval, TimeDelay_Game ___roundInteval, TimeDelay_Game ___bulletInteval, ref int ___totleBulletSum)
         {
-            try { CsEffects.OnAim(___role, ___weaponDef, ___step, ___readyInteval, ___roundInteval, ___bulletInteval, ref ___totleBulletSum); }
+            try
+            {
+                // G3SG1: a suppressed role's aim and fire timers stand still
+                if (CsEffects.Suppressed(___role)) { CsStats.Add(CsStats.Effects, "g3sg1 held fire"); return false; }
+                CsEffects.OnAim(___role, ___weaponDef, ___step, ___readyInteval, ___roundInteval, ___bulletInteval, ref ___totleBulletSum);
+            }
             catch (Exception e) { UnityEngine.Debug.LogWarning("[CsArsenal] aim: " + e.Message); }
+            return true;
         }
     }
 

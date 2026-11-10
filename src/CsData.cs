@@ -43,7 +43,7 @@ namespace CsArsenal
         public static readonly string[] ArmorBenches = { "150", "151", "152", "153" };
         public const string TechId = "cs-1", TechTemplate = "ranged-1";
         public const string Tech2Id = "cs-2", Tech2Parent = "ranged-2", RecipeUnlockTemplate = "62011";
-        public const string Tech3Id = "cs-3", Tech3Parent = "ranged-3";
+        public const string Tech3Id = "cs-3", Tech3Parent = "ranged-3", Tech4Id = "cs-4", Tech4Parent = "ranged-4";
         public const float HeadshotMonsterMul = 2.5f, HeadshotPersonMul = 2f;   // people: x2 (user 11-09, not the lethal brain hit)
         public const int ZeusExecuteHp = 1500, ZeusDamage = 400;
 
@@ -122,7 +122,7 @@ namespace CsArsenal
                 Desc = "T 阵营的廉价步枪。【廉价火力】弹匣 35 发；击杀奖励 ×1.5。" },
             new GunSpec { Base = "8851", Key = "famas", Name = "法玛斯", Tier = 3, Template = "3031", Category = "rifle", Side = "CT", AtkMul = 1.0f, AttackBullet = 3, BulletInterval = 0.06f, MagAdd = -10,
                 Price = 93000, Headshot = 0.06f, KillReward = 1500, RecipeId = "88626", RecipeUnlockId = "88526", Materials = "12_20_84|12_24_52|12_23_27", Workload = 75,
-                Desc = "CT 阵营的三连发步枪。【三连点射】每轮第三发打中必定爆头。" },
+                Desc = "CT 阵营的三连发步枪。【三连点射】一轮三发全部打中同一个目标时，第三发必定爆头。" },
             new GunSpec { Base = "8852", Key = "ak47", Name = "AK-47", Tier = 3, Template = "3031", Category = "rifle", Side = "T", AtkMul = 1.3f, RoundIntervalMul = 1.1f,
                 Price = 98000, Headshot = 0.20f, KillReward = 1500, RecipeId = "88627", RecipeUnlockId = "88527", Materials = "12_20_84|12_24_52|12_23_27", Workload = 75,
                 Desc = "T 阵营的经典步枪，威力大。【一枪头】任何距离爆头率 20%，爆头伤害 ×3（其他枪 ×2）。" },
@@ -144,6 +144,23 @@ namespace CsArsenal
             new GunSpec { Base = "8858", Key = "ssg08", Name = "SSG 08", Tier = 3, Template = "3061", Category = "sniper", AtkMul = 0.7f, MagAdd = 3, RoundIntervalMul = 0.7f,
                 Price = 96000, Headshot = 0.25f, KillReward = 1500, RecipeId = "88633", RecipeUnlockId = "88533", Materials = "12_20_66|12_23_22|12_22_55", Workload = 70,
                 Desc = "轻型狙击枪，开火间隔比同档狙击枪短 30%。【轻狙】拿着它移动速度 +10%；击杀后 3 秒内移动速度再 +30%。" },
+
+            // ---- CS-4 精确与压制 (tier 4: snipers from 零号守备 4061, machine guns from 捍卫者机枪 4041) ----
+            new GunSpec { Base = "8860", Key = "awp", Name = "AWP", Tier = 4, Template = "4061", Category = "sniper", AtkMul = 2.6f, MagAdd = -8, RoundIntervalMul = 1.5f,
+                Price = 520000, Headshot = 0.30f, KillReward = 500, RecipeId = "88634", RecipeUnlockId = "88534", Materials = "12_20_60|12_39_40|12_42_3", Workload = 50,
+                Desc = "重型狙击枪，伤害极高。【一枪一个】子弹贯穿直线上的所有敌人，每穿过一个伤害 −25%；拿着它移动速度 −15%。" },
+            new GunSpec { Base = "8861", Key = "g3sg1", Name = "G3SG1", Tier = 4, Template = "4061", Category = "sniper", Side = "T", AtkMul = 0.65f, MagAdd = 7, RoundIntervalMul = 0.3f,
+                Price = 500000, Headshot = 0.20f, KillReward = 1500, RecipeId = "88635", RecipeUnlockId = "88535", Materials = "12_20_60|12_39_40|12_42_3", Workload = 50,
+                Desc = "T 阵营的连发狙击枪。【连狙压制】命中让目标 2 秒内无法开火。" },
+            new GunSpec { Base = "8862", Key = "scar20", Name = "SCAR-20", Tier = 4, Template = "4061", Category = "sniper", Side = "CT", AtkMul = 0.7f, MagAdd = 7, RoundIntervalMul = 0.3f, RangeAdd = 6,
+                Price = 500000, Headshot = 0.25f, KillReward = 1500, RecipeId = "88636", RecipeUnlockId = "88536", Materials = "12_20_60|12_39_40|12_42_3", Workload = 50,
+                Desc = "CT 阵营的连发狙击枪。【精确连狙】射程比同档狙击枪远 6 格，爆头率 25%。" },
+            new GunSpec { Base = "8863", Key = "m249", Name = "M249", Tier = 4, Template = "4041", Category = "mg", AtkMul = 1.1f,
+                Price = 490000, Headshot = 0.03f, KillReward = 1500, RecipeId = "88637", RecipeUnlockId = "88537", Materials = "12_20_25|12_39_32|12_42_10", Workload = 60,
+                Desc = "轻机枪。【火力网】持续开火时，身边 5 格内的友军受到的伤害 −15%。" },
+            new GunSpec { Base = "8864", Key = "negev", Name = "内格夫", Tier = 4, Template = "4041", Category = "mg", AtkMul = 0.9f, AttackBullet = 150, BulletInterval = 0.07f,
+                Price = 495000, Headshot = 0.02f, KillReward = 1500, RecipeId = "88638", RecipeUnlockId = "88538", Materials = "12_20_25|12_39_32|12_42_10", Workload = 60,
+                Desc = "射速极高的机枪，一次打 150 发。【越打越准】持续开火 2 秒后伤害 +50%，停火即重置。" },
         };
 
         // Kevlar: the game's own looks (cloned rows keep their skins); four quality rows each like the templates
@@ -158,7 +175,7 @@ namespace CsArsenal
         // enemies: copies of the game's tier-1 guerrilla (soldier 0) carrying one CS pistol each, added (0..1) to the
         // tier-1 squads that already use soldiers 0 or 1; their guns drop like the game's (T_Weapon.Drop)
         public const string SoldierTemplate = "0", SoldierBase = "8890";   // tier 1 (guerrilla 0); tier 2 copies guerrilla 10
-        public const string Soldier2Template = "10", Soldier3Template = "20";
+        public const string Soldier2Template = "10", Soldier3Template = "20", Soldier4Template = "30";
         // CS-1 kept their first IDs (88900..88904); later guns are 88910+
         public static string SoldierId(int gunIndex) => gunIndex < 10 ? SoldierBase + gunIndex : "889" + gunIndex;
 
@@ -179,6 +196,12 @@ namespace CsArsenal
             var names = new List<string>(); foreach (var g in Guns) if (g.Tier == 1) names.Add(g.Name);
             foreach (var a in Armor) names.Add(a.Name);
             return "解锁配方（粗制枪械加工台、自动枪械组装台制枪，装甲锻造台制护甲）：" + string.Join("、", names) + "。";
+        }
+
+        public static string Tech4Detail()
+        {
+            var names = new List<string>(); foreach (var g in Guns) if (g.Tier == 4) names.Add(g.Name);
+            return "解锁配方（枪械组装中心制造）：" + string.Join("、", names) + "。";
         }
 
         public static string Tech3Detail()

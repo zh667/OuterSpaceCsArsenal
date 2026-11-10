@@ -75,7 +75,8 @@ namespace CsArsenal
                 if (g.AntiArmor > 0) hurtStruct.ArmorPenetration = Math.Max(hurtStruct.ArmorPenetration, g.AntiArmor);
                 float chance = g.Headshot;
                 if (g.Key == "usp_silencer" && firstHit) chance = 1f;   // the first hit a target ever takes
-                if ((g.Key == "famas" || g.Key == "m4a1_silencer") && CsEffects.TakeCrit(hurtStruct.from)) { chance = 1f; CsStats.Add(CsStats.Effects, g.Key + " crit"); }
+                if (g.Key == "m4a1_silencer" && CsEffects.TakeCrit(hurtStruct.from)) { chance = 1f; CsStats.Add(CsStats.Effects, g.Key + " crit"); }
+                if (g.Key == "famas" && CsEffects.FamasThird(hurtStruct.from, __instance)) { chance = 1f; CsStats.Add(CsStats.Effects, "famas crit"); }
                 if (chance <= 0 || UnityEngine.Random.value >= chance) return;
                 if (person && HelmetBlocks(__instance)) { CsStats.Add(CsStats.HelmetSaves, g.Key); return; }   // the helmet took it
                 CsStats.Add(CsStats.Headshots, g.Key);
@@ -94,6 +95,7 @@ namespace CsArsenal
             if (!__state) return;
             try
             {
+                if (hurtStruct.weaponDef != null && CsData.ByWeapon(hurtStruct.weaponDef.ID)?.Key == "awp") CsEffects.Pierce(__instance, hurtStruct, CsData.ByWeapon(hurtStruct.weaponDef.ID));
                 if (!Down(__instance)) return;
                 var g = CsData.ByWeapon(hurtStruct.weaponDef?.ID);
                 if (g == null) return;
@@ -142,7 +144,8 @@ namespace CsArsenal
                 CsStats.Add(CsStats.Shots, g.Key);
                 if (g.Key == "glock18" && shootIndex % 3 != 0 && __instance.mod_Move != null && !__instance.mod_Move.isFinish())
                 { CsStats.Add(CsStats.Skipped, g.Key); return false; }   // moving: single shots
-                if ((g.Key == "famas" && shootIndex % 3 == 2) || (g.Key == "m4a1_silencer" && shootIndex == 0)) CsEffects.MarkCrit(__instance);
+                if (g.Key == "m4a1_silencer" && shootIndex == 0) CsEffects.MarkCrit(__instance);
+                if (g.Category == "mg") CsEffects.OnShot(__instance, g);
                 if (g.Key == "elite" && shootIndex % 2 == 1)
                 {
                     var other = OtherEnemy(__instance, target, w.Range);

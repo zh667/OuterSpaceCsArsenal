@@ -24,11 +24,14 @@ GUNS = {"glock18": "handGun", "usp_silencer": "handGun", "hkp2000": "handGun", "
         # CS-2
         "tec9": "handGun", "fiveseven": "handGun", "cz75a": "handGun", "deagle": "handGun", "revolver": "handGun", "mac10": "gun", "mp9": "gun", "mp7": "gun", "mp5sd": "gun", "ump45": "gun", "bizon": "gun", "nova": "gun", "sawedoff": "gun", "mag7": "gun", "xm1014": "gun",
         # CS-3
-        "p90": "gun", "galilar": "gun", "famas": "gun", "m4a4": "gun", "m4a1_silencer": "gun", "ssg08": "gun", "sg556": "gun", "aug": "gun"}
+        "p90": "gun", "galilar": "gun", "famas": "gun", "m4a4": "gun", "m4a1_silencer": "gun", "ssg08": "gun", "sg556": "gun", "aug": "gun",
+        # CS-4
+        "awp": "gun", "g3sg1": "gun", "scar20": "gun", "m249": "gun", "negev": "gun"}
 CN = {"glock18": "格洛克 18", "usp_silencer": "USP 消音版", "hkp2000": "P2000", "p250": "P250", "elite": "双持贝瑞塔（单把）",
       "taser": "宙斯 x27", "ak47": "AK-47",
       "tec9": "Tec-9", "fiveseven": "FN57", "cz75a": "CZ75", "deagle": "沙漠之鹰", "revolver": "R8 左轮", "mac10": "MAC-10", "mp9": "MP9", "mp7": "MP7", "mp5sd": "MP5-SD", "ump45": "UMP-45", "bizon": "PP 野牛", "nova": "新星", "sawedoff": "截短霰弹枪", "mag7": "MAG-7", "xm1014": "XM1014",
-      "p90": "P90", "galilar": "加利尔 AR", "famas": "法玛斯", "m4a4": "M4A4", "m4a1_silencer": "M4A1 消音版", "ssg08": "SSG 08", "sg556": "SG 553", "aug": "AUG"}
+      "p90": "P90", "galilar": "加利尔 AR", "famas": "法玛斯", "m4a4": "M4A4", "m4a1_silencer": "M4A1 消音版", "ssg08": "SSG 08", "sg556": "SG 553", "aug": "AUG",
+      "awp": "AWP", "g3sg1": "G3SG1", "scar20": "SCAR-20", "m249": "M249", "negev": "内格夫"}
 REFS = {"gun": "gun__AK47", "handGun": "handgun__p250"}
 
 def unpremul_down(img, W, H):
