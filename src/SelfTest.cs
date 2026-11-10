@@ -566,16 +566,17 @@ namespace CsArsenal
             c.details.Add("shooters " + shooters.Count + " (" + string.Join(", ", PerfGuns.Take(shooters.Count)) + "), monsters " + spawned.Count);
             AimAt(centre, BaseScale() * 0.6f, null);
             int hits0 = CsStats.Hits.Values.Sum();
+            var csTr = new int[4]; var ctlTr = new int[4];
             yield return PerfPhase(c, "2 CS 枪交战 1 倍速", phase, spawned, shooters);
             SetClock(3f);
-            yield return PerfPhase(c, "3 CS 枪交战 3 倍速", phase, spawned, shooters);
+            yield return PerfPhase(c, "3 CS 枪交战 3 倍速", phase, spawned, shooters, () => CsTracer.Audit(csTr));
             int csHits = CsStats.Hits.Values.Sum() - hits0;
             yield return Shot("perf-cs");
             // control: the same people, each with the game's own gun the CS one was copied from (no CS effect, tracer or
             // sound; our hooks still run and leave at once)
             Locked(() => { for (int i = 0; i < shooters.Count; i++) { var g = CsData.Guns.First(x => x.Key == PerfGuns[i]); Arm(shooters[i], g.Template + "0", c); Refresh(shooters[i], c); Draft(shooters[i]); } });
             int hitsCtl0 = CsStats.Hits.Values.Sum();
-            yield return PerfPhase(c, "4 对照：原版同款枪交战 3 倍速", phase, spawned, shooters);
+            yield return PerfPhase(c, "4 对照：原版同款枪交战 3 倍速", phase, spawned, shooters, () => CsTracer.Audit(ctlTr));
             SetClock(0f);
             c.details.Add("CS hits in phases 2-3: " + csHits + ", CS hits in the control phase (should be 0): " + (CsStats.Hits.Values.Sum() - hitsCtl0));
             Locked(() =>
@@ -586,12 +587,20 @@ namespace CsArsenal
             lock (TestFreezePatch.Frozen) TestFreezePatch.Frozen.Clear();
             Locked(() => { foreach (var o in MapManager.getInstance().heroManager.getAllianceFaction(1).getRoles()) if (o?.roleBean != null && wasInvincible.TryGetValue(o.getUID(), out bool was)) o.roleBean.isInvincible = was; wasInvincible.Clear(); });
             CsPerf.Window = 30f; CsPerf.EchoToGameLog = false;
-            c.passed = csHits > 0;
+            // function kept: CS bullets showed the streak with the game's particle hidden; in the control phase the bullets
+            // (pooled, some once CS ones) showed the game's particle and no streak
+            bool tracersOk = csTr[0] > 20 && csTr[1] >= csTr[0] * 0.95 && ctlTr[0] <= ctlTr[2] / 20 + 1 && ctlTr[2] > 0 && ctlTr[3] >= ctlTr[2] * 0.95;
+            c.details.Add("tracers seen, CS phase: " + csTr[0] + " CS bullets, " + csTr[1] + " with the streak shown and the game particle hidden; control phase: "
+                + ctlTr[2] + " plain bullets, " + ctlTr[3] + " with the game particle shown and no streak (" + ctlTr[0] + " still CS)" + (tracersOk ? "" : " WRONG"));
+            c.details.Add("warm-up at load: " + CsPatches.Warmed);
+            lock (CsPerf.SlowSeen) c.details.Add("slow single calls (2 ms+): " + (CsPerf.SlowSeen.Count == 0 ? "none" : string.Join(" / ", CsPerf.SlowSeen)));
+            c.passed = csHits > 0 && tracersOk;
             c.summary = shooters.Count + " shooters, " + spawned.Count + " monsters, " + csHits + " CS hits; one CsArsenal-perf line per phase in details, Player.log and " + CsPerf.FilePath;
         }
 
-        IEnumerator PerfPhase(Check c, string label, float seconds, List<FWMonsterBean> hold, List<BaseHero> draft = null)
+        IEnumerator PerfPhase(Check c, string label, float seconds, List<FWMonsterBean> hold, List<BaseHero> draft = null, Action sample = null)
         {
+            float nextSample = Time.realtimeSinceStartup + 3f;
             CsPerf.Flush();   // closes whatever ran before; the phase starts clean
             float t0 = Time.realtimeSinceStartup, nextHold = 0f, nextDraft = t0 + 10f; int gc = GC.CollectionCount(0);
             var dts = new List<float>();
@@ -604,6 +613,7 @@ namespace CsArsenal
                     nextHold = Time.realtimeSinceStartup + 0.5f;   // the monsters stand (a steady load)
                     Locked(() => { foreach (var r in MapManager.getInstance().monsterManager.getMonsters()) if (hold.Contains(r.monsterBean)) { r.mod_Move?.stopMove(); if (r.monsterBean.getHp() < 500000) r.monsterBean.setHp(1000000); } });
                 }
+                if (sample != null && Time.realtimeSinceStartup > nextSample) { nextSample = Time.realtimeSinceStartup + 0.5f; try { sample(); } catch (Exception e) { c.details.Add("sample: " + e.Message); } }
                 if (draft != null && Time.realtimeSinceStartup > nextDraft)
                 {
                     nextDraft = Time.realtimeSinceStartup + 10f;   // the manual fight mode lapses after 30 s

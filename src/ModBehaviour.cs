@@ -18,7 +18,7 @@ namespace CsArsenal
             if (SelfTest.Requested("zh667.csarsenal")) gameObject.AddComponent<SelfTest>();
         }
 
-        bool soundsLoaded;
+        bool soundsLoaded, warmed;
 
         void Update()
         {
@@ -30,6 +30,7 @@ namespace CsArsenal
         void Work()
         {
             // CS2 sounds load once the mod's folder is known (CsDefLoader runs while the game reads its tables)
+            if (!warmed) { warmed = true; try { CsTracer.WarmSprite(); } catch (Exception e) { Debug.LogWarning("[CsArsenal] tracer sprite: " + e.Message); } }
             if (!soundsLoaded && CsDefLoader.ResourcesDir != null)
             {
                 soundsLoaded = true;

@@ -15,8 +15,8 @@ namespace CsArsenal
     // main thread reads and resets them in Flush. Timing a hook costs two Stopwatch reads and two allocation reads.
     public static class CsPerf
     {
-        public enum H { Hit, Shoot, Aim, Volley, Speed, Live, Spread, Tracer, TracerFrame, Sound, Mesh, Attach, Update, Count }
-        static readonly string[] Names = { "受击结算", "开火", "瞄准计时", "霰弹齐射", "移动速度", "冻结检查", "弹丸散布", "曳光创建", "曳光每帧", "枪声", "科技图标网格", "手持挂件", "模组每帧" };
+        public enum H { Hit, HitEffects, Popup, Reward, Shoot, Aim, Volley, Speed, Live, Spread, Tracer, TracerFrame, Sound, Mesh, Attach, Update, Count }
+        static readonly string[] Names = { "受击结算", "　其中枪械特效", "　其中飘字", "　其中击杀奖励", "开火", "瞄准计时", "霰弹齐射", "移动速度", "冻结检查", "弹丸散布", "曳光创建", "曳光每帧", "枪声", "科技图标网格", "手持挂件", "模组每帧" };
         const int N = (int)H.Count;
 
         public static long Now => Stopwatch.GetTimestamp();
@@ -26,13 +26,21 @@ namespace CsArsenal
 
         public struct Mark { public long T, A; }
         public static Mark Start() => new Mark { T = Stopwatch.GetTimestamp(), A = Alloc() };
-        public static void End(H h, Mark m)
+        public static void End(H h, Mark m, string label = null)
         {
             long d = Stopwatch.GetTimestamp() - m.T; int i = (int)h;
             Interlocked.Add(ref ticks[i], d); Interlocked.Increment(ref calls[i]);
             long cur; while (d > (cur = Interlocked.Read(ref maxTick[i])) && Interlocked.CompareExchange(ref maxTick[i], d, cur) != cur) { }
+            if (d >= Interlocked.Read(ref maxTick[i])) maxLabel[i] = label;   // racy on purpose: a hint, not a count
             if (threadAlloc != null) { long a = threadAlloc() - m.A; if (a > 0) Interlocked.Add(ref alloc[i], a); }
+            // a single call of 2 ms or more is a stall of its own: written at once (from the main thread, next frame)
+            if (d > slowTicks) slow.Enqueue(DateTime.Now.ToString("HH:mm:ss") + " 慢调用 " + Names[i].Trim('　') + " " + Ms(d).ToString("0.00") + "ms"
+                + (label != null ? "（" + label + "）" : "") + (MainThread.onMain ? " 主线程" : " 后台线程"));
         }
+        static readonly string[] maxLabel = new string[N];
+        static readonly long slowTicks = Stopwatch.Frequency / 500;   // 2 ms
+        static readonly System.Collections.Concurrent.ConcurrentQueue<string> slow = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        public static readonly System.Collections.Generic.List<string> SlowSeen = new System.Collections.Generic.List<string>();   // for the self-test
 
         // bytes allocated by the calling thread (only where the runtime really counts them)
         static readonly Func<long> threadAlloc = MakeThreadAlloc();
@@ -63,6 +71,7 @@ namespace CsArsenal
 
         public static void EndFrame()
         {
+            while (slow.TryDequeue(out var s)) { Write(s); lock (SlowSeen) { if (SlowSeen.Count < 200) SlowSeen.Add(s); } }
             double dt = Time.unscaledDeltaTime * 1000.0;
             frameSum += dt; if (dt > frameMax) frameMax = dt; frames++;
             if (windowStart < 0) { windowStart = Time.unscaledTime; gc0 = GC.CollectionCount(0); }
@@ -78,6 +87,7 @@ namespace CsArsenal
                 t[i] = Interlocked.Exchange(ref ticks[i], 0); c[i] = Interlocked.Exchange(ref calls[i], 0);
                 mx[i] = Interlocked.Exchange(ref maxTick[i], 0); al[i] = Interlocked.Exchange(ref alloc[i], 0);
             }
+            var labels = (string[])maxLabel.Clone(); Array.Clear(maxLabel, 0, N);
             // "did anything": a hook other than the always-running ones (speed, freeze check, aim timer, per-frame update)
             bool busy = c[(int)H.Hit] + c[(int)H.Shoot] + c[(int)H.Tracer] + c[(int)H.Sound] > 0;
             LastLineFresh = frames > 0;
@@ -99,6 +109,7 @@ namespace CsArsenal
                     sb.Append(' ').Append(Names[i]).Append(' ').Append((c[i] / secs).ToString("0")).Append("次/秒 ")
                       .Append(msPerSec.ToString("0.00")).Append("ms/秒（平均 ").Append((Ms(t[i]) * 1000 / c[i]).ToString("0.0")).Append("us 最慢 ")
                       .Append(Ms(mx[i]).ToString("0.00")).Append("ms");
+                    if (labels[i] != null) sb.Append("（").Append(labels[i]).Append('）');
                     if (threadAlloc != null) sb.Append(" 分配 ").Append(kbPerSec.ToString("0.0")).Append("KB/秒");
                     sb.Append("）；");
                 }

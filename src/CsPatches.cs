@@ -23,6 +23,26 @@ namespace CsArsenal
             if (H != null) return;
             try { H = new Harmony("zh667.csarsenal"); H.PatchAll(typeof(CsPatches).Assembly); Debug.Log("[CsArsenal] patches applied"); }
             catch (Exception e) { Error = e.ToString(); Debug.LogError("[CsArsenal] patches: " + e); }
+            Warm();
+        }
+
+        // The first call of a method compiles it: the first CS shot of a game paid 2-3 ms for the hooks it reached (perf
+        // test 11-10). Compiled once here, while the game loads. Generic and abstract methods are skipped.
+        public static string Warmed = "";
+        static void Warm()
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew(); int n = 0, failed = 0;
+            foreach (var t in typeof(CsPatches).Assembly.GetTypes())
+            {
+                if (t.ContainsGenericParameters || t.Namespace == null || !t.Namespace.StartsWith("CsArsenal") || typeof(Kit.SelfTestBase).IsAssignableFrom(t)) continue;
+                foreach (var m in t.GetMethods(System.Reflection.BindingFlags.DeclaredOnly | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
+                {
+                    if (m.IsAbstract || m.ContainsGenericParameters || m.GetMethodBody() == null) continue;
+                    try { System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(m.MethodHandle); n++; } catch { failed++; }
+                }
+            }
+            Warmed = n + " methods in " + sw.ElapsedMilliseconds + " ms" + (failed > 0 ? ", " + failed + " failed" : "");
+            Debug.Log("[CsArsenal] warm-up: " + Warmed);
         }
     }
 
@@ -51,7 +71,7 @@ namespace CsArsenal
         // dead, fallen, or out of health (some deaths are settled on the next logic update)
         static bool Down(BaseRole r) => r.roleBean == null || r.roleBean.isDead() || r.roleBean.isFallDown() || r.roleBean.getHp() <= 0;
 
-        static void Prefix(BaseRole __instance, ref HurtStruct hurtStruct, out bool __state) { var pm = CsPerf.Start(); try { PrefixBody(__instance, ref hurtStruct, out __state); } finally { CsPerf.End(CsPerf.H.Hit, pm); } }
+        static void Prefix(BaseRole __instance, ref HurtStruct hurtStruct, out bool __state) { var pm = CsPerf.Start(); try { PrefixBody(__instance, ref hurtStruct, out __state); } finally { CsPerf.End(CsPerf.H.Hit, pm, hurtStruct.weaponDef?.ID); } }
         // timed for the perf log (CsPerf); the work is in PrefixBody
         static void PrefixBody(BaseRole __instance, ref HurtStruct hurtStruct, out bool __state)
         {
@@ -65,7 +85,9 @@ namespace CsArsenal
                 var g = CsData.ByWeapon(hurtStruct.weaponDef?.ID);
                 headshot = false;
                 if (Down(__instance)) return;
-                CsEffects.OnHit(__instance, ref hurtStruct, g);   // FN57 shred counts for every attacker
+                var pe = CsPerf.Start();
+                try { CsEffects.OnHit(__instance, ref hurtStruct, g); }   // FN57 shred counts for every attacker
+                finally { CsPerf.End(CsPerf.H.HitEffects, pe, g?.Key); }
                 if (g == null) return;
                 __state = true;   // a standing target hit by a CS gun: the postfix checks whether this hit took it down
                 CsStats.Add(CsStats.Hits, g.Key);
@@ -94,7 +116,7 @@ namespace CsArsenal
             catch (Exception e) { Debug.LogWarning("[CsArsenal] beHit: " + e.Message); }
         }
 
-        static void Postfix(BaseRole __instance, HurtStruct hurtStruct, bool __state) { var pm = CsPerf.Start(); try { PostfixBody(__instance, hurtStruct, __state); } finally { CsPerf.End(CsPerf.H.Hit, pm); } }
+        static void Postfix(BaseRole __instance, HurtStruct hurtStruct, bool __state) { var pm = CsPerf.Start(); try { PostfixBody(__instance, hurtStruct, __state); } finally { CsPerf.End(CsPerf.H.Hit, pm, hurtStruct.weaponDef?.ID + " 结算后"); } }
         // timed for the perf log (CsPerf); the work is in PostfixBody
         static void PostfixBody(BaseRole __instance, HurtStruct hurtStruct, bool __state)
         {
@@ -105,13 +127,15 @@ namespace CsArsenal
                 var g = CsData.ByWeapon(hurtStruct.weaponDef?.ID);
                 if (g == null) return;
                 CsStats.Add(CsStats.Kills, g.Key);
-                CsEffects.OnKill(__instance, hurtStruct, g, headshot);
+                var pk = CsPerf.Start();
+                try { CsEffects.OnKill(__instance, hurtStruct, g, headshot); } finally { CsPerf.End(CsPerf.H.HitEffects, pk, g.Key + " 击杀"); }
                 if (!(hurtStruct.from is BaseHero shooter) || shooter.getAlliance() != 1 || __instance.getAlliance() == 1) return;
                 var gd = UserBean.tryGetInstance()?.gameData;
                 if (gd == null) return;
                 long reward = (long)Math.Round(g.KillReward * CsConfig.Get().killRewardMultiplier);
                 if (reward <= 0) return;
-                gd.addCP(reward, "CS 击杀奖励");
+                var pr = CsPerf.Start();
+                try { gd.addCP(reward, "CS 击杀奖励"); } finally { CsPerf.End(CsPerf.H.Reward, pr, g.Key); }
                 lock (CsStats.Kills) CsStats.Credits += reward;
                 Popup(shooter, "+" + reward + " 信用点");
             }
@@ -146,7 +170,7 @@ namespace CsArsenal
         }
 
 
-        static void Popup(BaseRole r, string s) { try { GUI_RoleInfo.showRoleInfo(r, s); } catch { } }
+        static void Popup(BaseRole r, string s) { var pm = CsPerf.Start(); try { GUI_RoleInfo.showRoleInfo(r, s); } catch { } finally { CsPerf.End(CsPerf.H.Popup, pm, s); } }
     }
 
     [HarmonyPatch(typeof(BaseHero), nameof(BaseHero.doFight_Shoot))]

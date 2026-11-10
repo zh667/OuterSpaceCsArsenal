@@ -16,6 +16,10 @@ namespace CsArsenal
     {
         static Sprite sprite;
         SpriteRenderer sr; BaseBullet bullet; Transform anim;
+        // the game bullet's own renderers (its particle effect), found once: searching them every frame was 60 % of the
+        // mod's time in a 12-gun fight (perf test 11-10). Searched again when the bullet's children change (the particle
+        // effect can be created after the shot) or the bullet is reused.
+        Renderer[] gameRenderers; int scannedChildren = -1;
         public bool On;
         public static int Live;   // tracer components alive (perf log)
         void OnDestroy() { Live--; }
@@ -25,6 +29,21 @@ namespace CsArsenal
         static readonly AccessTools.FieldRef<BulletAnim_Base, float> offy = AccessTools.FieldRefAccess<BulletAnim_Base, float>("offy");
         static readonly AccessTools.FieldRef<BulletAnim_Base, float> rot = AccessTools.FieldRefAccess<BulletAnim_Base, float>("displayRotate");
         static readonly AccessTools.FieldRef<BaseBullet, BulletAnim_Base> animOf = AccessTools.FieldRefAccess<BaseBullet, BulletAnim_Base>("anim");
+
+        // self-test: CS bullets show the streak and hide the game's particle; other bullets show the game's particle
+        public static void Audit(int[] count)
+        {
+            foreach (var t in FindObjectsOfType<CsTracer>())
+            {
+                if (t.bullet == null || !t.bullet.gameObject.activeInHierarchy || t.anim == null) continue;
+                bool gameShown = false;
+                foreach (var r in t.anim.GetComponentsInChildren<Renderer>(true)) if (r != t.sr && r.enabled) gameShown = true;
+                if (t.On && t.Length > 0) { count[0]++; if (t.sr.enabled && !gameShown) count[1]++; }
+                else { count[2]++; if (!t.sr.enabled && (gameShown || t.anim.GetComponentsInChildren<Renderer>(true).Length == 0)) count[3]++; }
+            }
+        }
+
+        public static void WarmSprite() { Streak(); }
 
         static Sprite Streak()
         {
@@ -57,7 +76,8 @@ namespace CsArsenal
             tr.On = on;
             if (g != null) { tr.Length = g.Category == "shotgun" ? 26f : g.Category == "zeus" ? 0f : 46f; tr.Width = g.Category == "shotgun" ? 1.1f : 1.6f; }
             tr.sr.enabled = on && tr.Length > 0;
-            tr.anim = animOf(b) != null ? animOf(b).transform : null;
+            var na = animOf(b) != null ? animOf(b).transform : null;
+            if (na != tr.anim) { tr.anim = na; tr.gameRenderers = null; }
             tr.ShowGameBullet(!on || tr.Length <= 0);
             tr.Follow();
         }
@@ -65,7 +85,9 @@ namespace CsArsenal
         void ShowGameBullet(bool show)
         {
             if (anim == null) return;
-            foreach (var r in anim.GetComponentsInChildren<Renderer>(true)) if (r != sr) r.enabled = show;
+            int n = anim.hierarchyCount;
+            if (gameRenderers == null || n != scannedChildren) { gameRenderers = anim.GetComponentsInChildren<Renderer>(true); scannedChildren = n; }
+            for (int i = 0; i < gameRenderers.Length; i++) { var r = gameRenderers[i]; if (r != null && r != sr && r.enabled != show) r.enabled = show; }
         }
 
         void LateUpdate() { var pm = CsPerf.Start(); try { Follow(); } finally { CsPerf.End(CsPerf.H.TracerFrame, pm); } }
