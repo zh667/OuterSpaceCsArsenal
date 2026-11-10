@@ -3,7 +3,7 @@
   <packageId>zh667.csarsenal</packageId>
   <name>CS2 军械</name>
   <author>zh667</author>
-  <desc>CS2 的枪械进入秩序：新曙光：CS 军械台、科技、配方，原模型原贴图，每把枪都有招牌特效（爆头、击杀奖励等）。需要前置模组 Harmony。</desc>
+  <desc>CS2 的 35 把枪和凯夫拉护甲进入秩序：新曙光。研究 CS-1～CS-4 科技后，在游戏原有的枪械设备和护甲设备上制造；武器商人也会卖。原模型原贴图、CS2 原声和曳光，每把枪都有招牌特效（爆头翻倍、击杀奖励等）。需要前置模组 Harmony（创意工坊 3803065949）。</desc>
   <versions>
     <ModMetaVersion>
       <version>v_common</version>
