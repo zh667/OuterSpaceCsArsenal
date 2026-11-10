@@ -1,6 +1,8 @@
 # Runs ON WINDOWS. Finds places for this mod's tech nodes in the game's tech tree (adapted from os-ef-turrets):
 # no card may cover another card or a connecting line, and new lines may not run through cards or along other lines.
 # The game's Science table plus the EfTurrets nodes (that mod is often installed too) are the obstacles.
+# HexGridY grows upwards. A trunk line leaves the parent's top edge ("t:") for a child above it and the bottom edge
+# ("b:") for one below; "t:" to a child below runs through the parent's icon (the game's own tree does the same).
 # Card size measured from the game's tree: icon at the anchor, card ~310 units to the right, +-50 up/down.
 #   python tools/tech_layout.py            prints and writes tools/layout.json (pre, x, y, path per node)
 import json, os, re, sys
@@ -77,7 +79,7 @@ for nid, par in WANT:
         if best: break
     if not best: print("NO SPOT", nid); continue
     x, y, (path, xm), trunk = best; pos[nid] = (x, y)
-    res[nid] = dict(pre=par, x=x, y=y, path=f"{par},t:{px},{y}:l" if trunk else (f"{par},r:{xm},{py}_{xm},{y}:l" if y != py else f"{par},r::l"))
+    res[nid] = dict(pre=par, x=x, y=y, path=f"{par},{'t' if y > py else 'b'}:{px},{y}:l" if trunk else (f"{par},r:{xm},{py}_{xm},{y}:l" if y != py else f"{par},r::l"))
     cards.append((x + CARD[0], x + CARD[1], y + CARD[2], y + CARD[3], nid))
     for s in path: segs.append((s[0], s[1], nid))
     print(nid, "after", par, "parent at", (px, py), "->", (x, y), res[nid]["path"])

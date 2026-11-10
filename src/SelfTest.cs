@@ -13,7 +13,8 @@ namespace CsArsenal
     //   fight  one drafted colonist, each gun in turn against three spawned monsters: hits, headshots, Zeus executions,
     //          kills and the credits gained (kill rewards)
     //   hand   each gun in a drafted colonist's hands (screenshots)
-    //   all    defs + fight + hand
+    //   look   the CS tech nodes in the game's tech tree: CS2 icon on every node (screenshots selftest-tech-<id>.png)
+    //   all    defs + fight + hand + look
     //   debug  serve the debug channel (Kit/DebugChannel.cs; tools/dbg.py) until "quit" or 30 idle minutes
     public class SelfTest : SelfTestBase
     {
@@ -65,7 +66,7 @@ namespace CsArsenal
                     Locked = Locked, Shot = Shot, SetClock = SetClock, GameDir = () => GameDir, Log = Log, Checks = () => result.checks,
                     StartTest = name =>
                     {
-                        IEnumerator e = name.StartsWith("fight") ? FightAll() : name == "hand" ? Hands() : null;
+                        IEnumerator e = name.StartsWith("fight") ? FightAll() : name == "hand" ? Hands() : name == "look" ? TechLook() : null;
                         if (e == null) return "unknown test " + name;
                         req.tests = name; StartCoroutine(Guard(e, name.Split(':')[0])); return null;
                     }
@@ -75,6 +76,45 @@ namespace CsArsenal
             }
             if (req.tests.StartsWith("fight") || req.tests == "all") yield return Guard(FightAll(), "fight");
             if (req.tests == "hand" || req.tests == "all") yield return Guard(Hands(), "hand");
+            if (req.tests == "look" || req.tests == "all") yield return Guard(TechLook(), "look");
+        }
+
+        // ---- look: the CS tech nodes as the player sees them ----
+        IEnumerator TechLook()
+        {
+            var c = new Check { name = "look", passed = true }; result.checks.Add(c);
+            var field = AccessTools.Field(typeof(TechonologyItem), "iconPlayer");
+            foreach (var id in CsTechIcons.TechIds)
+            {
+                FairyUIDispatcher.showTecholongy(id);
+                TechonologyItem item = null;
+                for (float t0 = Time.realtimeSinceStartup; item == null && Time.realtimeSinceStartup - t0 < 15;)
+                {
+                    yield return new WaitForSecondsRealtime(0.5f);
+                    item = TechonologyView.getInstance()?.getTechnologyItem(id);
+                }
+                yield return new WaitForSecondsRealtime(1.5f);
+                bool ok = item != null && CsTechIcons.Applied(field.GetValue(item) as UISpriteCatPlayer);
+                if (!ok) c.passed = false;
+                c.details.Add(id + ": node shown " + (item != null) + ", CS2 icon " + ok);
+                yield return Shot("tech-" + id);
+            }
+            // every item, recipe and recipe-unlock row draws our CS2 picture, not the icon of the game row it was cloned from
+            int withIcon = 0, total = 0;
+            void Count(BaseDef d) { if (d == null) return; total++; if (d.RawIcon != null && d.Sprite_RawIcon != null) withIcon++; else c.details.Add("no CS2 picture on " + d.GetType().Name + " " + d.ID); }
+            foreach (var g in CsData.Guns)
+            {
+                Count(ImplDef<T_WeaponDef>.getDataID(g.Row(0))); Count(ImplDef<F_ProductListDef>.getDataID(g.RecipeId));
+                if (g.RecipeUnlockId != null) Count(ImplDef<TechnologyUnlockItemDef>.getDataID(g.RecipeUnlockId));
+            }
+            foreach (var a in CsData.Armor)
+            {
+                Count(ImplDef<T_ClothDef>.getDataID(a.Row(0))); Count(ImplDef<F_ProductListDef>.getDataID(a.RecipeId));
+                if (a.RecipeUnlockId != null) Count(ImplDef<TechnologyUnlockItemDef>.getDataID(a.RecipeUnlockId));
+            }
+            c.details.Add("rows with our CS2 picture " + withIcon + "/" + total);
+            if (withIcon != total || total == 0) c.passed = false;
+            c.summary = string.Join("; ", c.details.Take(6));
         }
 
         Check CheckDefs()
@@ -149,7 +189,19 @@ namespace CsArsenal
             {
                 var td = ImplDef<TechnologyDef>.getDataID(tid);
                 if (td == null) { c.passed = false; c.details.Add("missing tech " + tid); }
-                else c.details.Add("tech " + td.Name + " after " + td.Pre_technology + " at " + td.HexGridX + "," + td.HexGridY + ", researched in this save " + UserBean.getInstance().techonology_isUnLock(tid));
+                else
+                {
+                    c.details.Add("tech " + td.Name + " after " + td.Pre_technology + " at " + td.HexGridX + "," + td.HexGridY + ", researched in this save " + UserBean.getInstance().techonology_isUnLock(tid));
+                    // the line leaves the parent on the side facing the node: "t:" from the top edge for a node above
+                    // (HexGridY grows upwards), "b:" from the bottom edge for one below; the other way it crosses the
+                    // parent's icon (user 11-10)
+                    var par = ImplDef<TechnologyDef>.getDataID(td.Pre_technology);
+                    string kind = td.PathNode != null && td.PathNode.Contains(",") ? td.PathNode.Split(',')[1].Substring(0, 1) : "?";
+                    string want = par == null ? "?" : td.HexGridY > par.HexGridY ? "t" : "b";
+                    if (kind != want) { c.passed = false; c.details.Add("tech " + tid + " line leaves its parent by '" + kind + "', should be '" + want + "'"); }
+                    var icon = CsTechIcons.PathOf(tid);
+                    if (icon == null || !System.IO.File.Exists(icon)) { c.passed = false; c.details.Add("tech icon missing: " + icon); }
+                }
             }
             if (ImplDef<F_ManufactureDef>.getDataID("884") != null) { c.passed = false; c.details.Add("the old CS bench 884 still exists"); }
             if (CsPatches.H == null) { c.passed = false; c.details.Add("patches not applied: " + CsPatches.Error); }

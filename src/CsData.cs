@@ -28,7 +28,7 @@ namespace CsArsenal
 
     public class ArmorSpec
     {
-        public string Base, Template, Name, Desc, RecipeId, RecipeUnlockId, Materials; public int DefendAdd, Price, Workload = 30; public float HeadProtect = -1f;
+        public string Base, Key, Template, Name, Desc, RecipeId, RecipeUnlockId, Materials; public int DefendAdd, Price, Workload = 30; public float HeadProtect = -1f;   // Key: picture icons/<Key>.png
         public string Row(int q) => Base + q;
     }
 
@@ -166,9 +166,9 @@ namespace CsArsenal
         // Kevlar: the game's own looks (cloned rows keep their skins); four quality rows each like the templates
         public static readonly List<ArmorSpec> Armor = new List<ArmorSpec>
         {
-            new ArmorSpec { Base = "8820", Template = "1252", Name = "凯夫拉防弹衣", DefendAdd = 4, Price = 3800, RecipeId = "88606", RecipeUnlockId = "88506",
+            new ArmorSpec { Base = "8820", Key = "kevlar", Template = "1252", Name = "凯夫拉防弹衣", DefendAdd = 4, Price = 3800, RecipeId = "88606", RecipeUnlockId = "88506",
                 Materials = "12_16_40|12_1_20|12_58_2", Desc = "CS 同款防弹背心。比同档护甲多 4 点防御。" },
-            new ArmorSpec { Base = "8821", Template = "1751", Name = "凯夫拉头盔", DefendAdd = 2, HeadProtect = 0.5f, Price = 2600, RecipeId = "88607", RecipeUnlockId = "88507",
+            new ArmorSpec { Base = "8821", Key = "helmet", Template = "1751", Name = "凯夫拉头盔", DefendAdd = 2, HeadProtect = 0.5f, Price = 2600, RecipeId = "88607", RecipeUnlockId = "88507",
                 Materials = "12_16_30|12_1_10|12_58_1", Desc = "CS 同款头盔。【防爆头】被爆头的几率减半（所有头盔都按自己的头部保护降低被爆头的几率）。" },
         };
 

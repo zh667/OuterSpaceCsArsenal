@@ -99,7 +99,10 @@ namespace CsArsenal
                     r.ID = a.Row(q); r.mod = cfg; r.ClassID = a.Base; r.Name = a.Name; r.Desc = a.Desc;
                     r.Defend += a.DefendAdd; if (a.HeadProtect >= 0) r.HeadProtect = a.HeadProtect;
                     r.Price = a.Price; r.Obtain = BenchNames(CsData.ArmorBenches) + "；商人售卖";
+                    r.RawIcon = "icons/" + a.Key + ".png";   // CS2 HUD silhouette (tools/assets/make_icons.py)
                     Replace(r); n++;
+                    ModIconCombine.additions.RemoveAll(b => b is T_ClothDef && b.ID == r.ID);
+                    ModIconCombine.addRow(r);
                 }
             Report.Add("armour rows " + n);
         }
@@ -193,7 +196,7 @@ namespace CsArsenal
             var unlocks = CsData.Guns.Where(g => g.Tier == 4 && g.RecipeUnlockId != null).Select(g => g.RecipeUnlockId).ToList();
             d.ID = CsData.Tech4Id; d.mod = cfg; d.Name = "CS-4 精确与压制"; d.Detail = CsData.Tech4Detail(); d.Detail_2 = "";
             d.Building_unlock = "-1"; d.NonBuilding_unlock = string.Join("|", unlocks);
-            d.Pre_technology = CsData.Tech4Parent; d.PathNode = "ranged-4,t:22450.0,250:l"; d.HexGridX = 22550; d.HexGridY = 250;   // tools/tech_layout.py
+            d.Pre_technology = CsData.Tech4Parent; d.PathNode = "ranged-4,b:22450.0,250:l"; d.HexGridX = 22550; d.HexGridY = 250;   // tools/tech_layout.py
             d.S_Materials = "12_42_18|12_39_22|12_41_3"; d.Level = 4;
             Replace(d);
             Report.Add("tech " + d.ID + " with " + unlocks.Count + " recipes");
@@ -211,28 +214,40 @@ namespace CsArsenal
                 r.ID = g.RecipeId; r.mod = cfg; r.Name = g.Name; r.Desc = g.Desc;
                 r.Materials = g.Materials; r.OutMaterial = "18_" + g.Row(0) + "_1"; r.Workload = g.Workload;
                 r.Show_Toast = "分类：" + (g.Category == "zeus" ? "电击枪" : g.Category == "smg" ? "冲锋枪" : g.Category == "shotgun" ? "霰弹枪" : g.Category == "rifle" ? "步枪" : g.Category == "sniper" ? "狙击枪" : g.Category == "mg" ? "机枪" : "手枪");
+                Icon(r, "icons/" + g.Key + ".png");
                 Replace(r); n++;
                 // the recipe stays locked until its CS tech is researched (the game's own guns do the same)
-                RecipeUnlock(g.RecipeUnlockId, g.RecipeId, g.Name, g.Desc, CsData.GunBenches[g.Tier]);
+                RecipeUnlock(g.RecipeUnlockId, g.RecipeId, g.Name, g.Desc, CsData.GunBenches[g.Tier], "icons/" + g.Key + ".png");
             }
             foreach (var a in CsData.Armor)
             {
                 F_ProductListDef r = ImplDef<F_ProductListDef>.getTemplateDef("61011");
                 r.ID = a.RecipeId; r.mod = cfg; r.Name = a.Name; r.Desc = a.Desc;
                 r.Materials = a.Materials; r.OutMaterial = "17_" + a.Row(0) + "_1"; r.Workload = a.Workload; r.Show_Toast = "分类：护甲";
+                Icon(r, "icons/" + a.Key + ".png");
                 Replace(r); n++;
-                RecipeUnlock(a.RecipeUnlockId, a.RecipeId, a.Name, a.Desc, CsData.ArmorBenches);
+                RecipeUnlock(a.RecipeUnlockId, a.RecipeId, a.Name, a.Desc, CsData.ArmorBenches, "icons/" + a.Key + ".png");
             }
             Report.Add("recipes " + n);
         }
 
-        void RecipeUnlock(string id, string recipe, string name, string desc, string[] benches)
+        // Our picture on a row cloned from a game row (CommonIcon draws RawIcon when a row has one); otherwise the
+        // template's icon shows, e.g. the game's pistol in the tech tree's "unlocked items" (user 11-10)
+        static void Icon(BaseDef row, string rawIcon)
+        {
+            row.RawIcon = rawIcon;
+            ModIconCombine.additions.RemoveAll(b => b.GetType() == row.GetType() && b.ID == row.ID);
+            ModIconCombine.addRow(row);
+        }
+
+        void RecipeUnlock(string id, string recipe, string name, string desc, string[] benches, string rawIcon)
         {
             if (id == null) return;
             TechnologyUnlockItemDef u = ImplDef<TechnologyUnlockItemDef>.getTemplateDef(CsData.RecipeUnlockTemplate);
             if (u == null) { Report.Add("no recipe unlock template"); return; }
             u.ID = id; u.mod = cfg; u.SubType = 1; u.AimItem = "1002_" + recipe; u.Name = name;
             u.Desc = "[a5a5a5]" + desc + "\n加工：" + BenchNames(benches) + "。";
+            Icon(u, rawIcon);
             Replace(u);
         }
 
@@ -274,10 +289,11 @@ namespace CsArsenal
             TechnologyDef d = ImplDef<TechnologyDef>.getTemplateDef(CsData.Tech2Parent);
             if (d == null) { Report.Add("no tech template " + CsData.Tech2Parent); return; }
             var unlocks = new List<string>(); foreach (var g in CsData.Guns) if (g.Tier == 2 && g.RecipeUnlockId != null) unlocks.Add(g.RecipeUnlockId);
-            // place from tools/tech_layout.py; the guns are made on the CS bench (CS-1), so CS-1 is needed in practice
+            // place from tools/tech_layout.py. Below its parent, so the line leaves the parent's bottom edge ("b:"); "t:"
+            // starts at the top edge and ran through the parent's icon (user 11-10)
             d.ID = CsData.Tech2Id; d.mod = cfg; d.Name = "CS-2 近距火力"; d.Detail = CsData.Tech2Detail(); d.Detail_2 = "";
             d.Building_unlock = "-1"; d.NonBuilding_unlock = string.Join("|", unlocks);
-            d.Pre_technology = CsData.Tech2Parent; d.PathNode = "ranged-2,t:9900.0,450:l"; d.HexGridX = 10000; d.HexGridY = 450;
+            d.Pre_technology = CsData.Tech2Parent; d.PathNode = "ranged-2,b:9900.0,450:l"; d.HexGridX = 10000; d.HexGridY = 450;
             d.S_Materials = "12_24_8|12_33_2|12_62_1"; d.Level = 2;
             Replace(d);
             Report.Add("tech " + d.ID + " with " + unlocks.Count + " recipes");

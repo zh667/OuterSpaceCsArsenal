@@ -13,6 +13,7 @@ from extract_tables import read_table
 HERE = Path(__file__).resolve().parent; ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 from pixelize import _outline
+import make_icons
 GAME = Path(r"E:\SteamLibrary\steamapps\common\Outer Space\Outer Space_Data\StreamingAssets")
 R0 = ROOT / "round0"; OUT = ROOT / "res" / "Resources" / "Textures"
 AGENTS = {  # agent: (render folder, base outfit per part type, skin names)
@@ -143,10 +144,11 @@ def main():
             Image.open(R0 / "sprites" / style / f"{gun}_{v}.png").save(wd / f"{gun}_{v}.png")
         xml.append(f'\t\t<ModSpineWeapon Name="{attach}" WeaponType="{kind}" Texture_T="weapons/{gun}_b.png" Texture_RT="weapons/{gun}_s.png" '
                    f'Texture_S="weapons/{gun}_s.png" Texture_RB="weapons/{gun}_s.png" Texture_B="weapons/{gun}_f.png" />')
-        # item icon: the side view, enlarged with whole pixels to fit ICON x ICON
-        s = Image.open(R0 / "sprites" / style / f"{gun}_s.png").convert("RGBA"); bb = s.getchannel("A").getbbox(); s = s.crop(bb)
-        k = max(1, min((ICON - 4) // s.width, (ICON - 4) // s.height)); s = s.resize((s.width * k, s.height * k), Image.NEAREST)
-        ic = Image.new("RGBA", (ICON, ICON), (0, 0, 0, 0)); ic.paste(s, ((ICON - s.width) // 2, (ICON - s.height) // 2), s); ic.save(idir / f"{gun}.png")
+        # item icon: the CS2 inventory picture (make_icons.py; user 11-10 wanted CS2 icons, not our side view)
+        make_icons.item_icon(gun).save(idir / f"{gun}.png")
+    for k in make_icons.ARMOUR:
+        make_icons.armour_icon(k).save(idir / f"{k}.png")
+    make_icons.write_tech()
     xml += ["\t</weapons>", "</ModXmlSpine>"]
     (OUT / "role-customize.xml").write_text("\n".join(xml), encoding="utf-8")
     (R0 / "agents").mkdir(parents=True, exist_ok=True); json.dump(report, open(R0 / "agents" / "assets_report.json", "w"), indent=1)
